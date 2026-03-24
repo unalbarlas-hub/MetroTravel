@@ -47,6 +47,7 @@ const translations = {
   en: {
     search: "Search",
     destination: "Destination",
+    whereTo: "Where to?",
     checkIn: "Check-in",
     checkOut: "Check-out",
     guests: "Guests",
@@ -87,6 +88,7 @@ const translations = {
   tr: {
     search: "Ara",
     destination: "Varış Noktası",
+    whereTo: "Nereye?",
     checkIn: "Giriş",
     checkOut: "Çıkış",
     guests: "Misafirler",
@@ -127,6 +129,7 @@ const translations = {
   de: {
     search: "Suchen",
     destination: "Reiseziel",
+    whereTo: "Wohin?",
     checkIn: "Check-in",
     checkOut: "Check-out",
     guests: "Gäste",
