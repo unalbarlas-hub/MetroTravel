@@ -1,7 +1,15 @@
-# HotelConnect - Hotel Booking Platform PRD
+# Metro Travel - Hotel Booking Platform PRD
 
 ## Original Problem Statement
 Build a scalable, production-ready Hotel Booking & Travel Platform similar to Booking.com / Expedia / Agoda, tailored for the Turkey market and designed to be white-label and clonable.
+
+## Branding
+- **Name**: Metro Travel
+- **Logo**: Orange "M" on dark navy background
+- **Color Scheme**: 
+  - Primary: Dark Navy (metro-navy: hsl(220, 70%, 12%))
+  - Accent: Metro Orange (metro-orange: hsl(24, 95%, 53%))
+- **Languages**: Turkish (TR), English (EN), German (DE)
 
 ## User Personas
 1. **Travelers (B2C Customers)**: Domestic and international tourists looking for hotels in Turkey
@@ -44,6 +52,16 @@ Build a scalable, production-ready Hotel Booking & Travel Platform similar to Bo
   - Reviews displayed on hotel detail page
   - Write review dialog for past bookings
 
+### Phase 3 (March 24, 2026)
+- ✅ **Metro Travel Rebranding**: Complete UI overhaul
+  - New brand name: "Metro Travel" (formerly HotelConnect)
+  - New color scheme: Dark navy + Metro orange
+  - Updated logo: Orange "M" with white text
+  - All pages updated for brand consistency
+- ✅ **N+1 Query Performance Fix**: Optimized hotel search with MongoDB aggregation pipeline
+- ✅ **Turkish Localization**: Full Turkish language support verified
+- ✅ **Deployment Ready**: All deployment blockers resolved
+
 ### Technical Stack
 - Backend: FastAPI + MongoDB
 - Frontend: React + Tailwind CSS + Shadcn UI
@@ -83,5 +101,12 @@ Build a scalable, production-ready Hotel Booking & Travel Platform similar to Bo
 
 ## Next Tasks
 1. Get Resend API key and enable email notifications
-2. Add iyzico payment integration for Turkey market
-3. Build B2B agency panel
+2. Add iyzico/Stripe payment integration for real payments
+3. Build B2B agency panel with commission management
+4. Implement password reset flow
+5. Add map view for search results
+
+## Test Reports
+- `/app/test_reports/iteration_3.json` - Latest test (100% pass rate)
+- Backend: 22/22 tests passed
+- Frontend: All branding and functionality tests passed
