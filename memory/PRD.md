@@ -19,9 +19,9 @@ Build a scalable, production-ready Hotel Booking & Travel Platform similar to Bo
 
 ---
 
-## What's Been Implemented (MVP - March 2026)
+## What's Been Implemented
 
-### Backend (FastAPI)
+### MVP (March 2026)
 - ✅ Complete authentication system (JWT + Emergent Google OAuth)
 - ✅ User management with roles (customer, hotel_owner, admin)
 - ✅ Hotel CRUD with approval workflow
@@ -32,47 +32,38 @@ Build a scalable, production-ready Hotel Booking & Travel Platform similar to Bo
 - ✅ Booking creation with mock payment
 - ✅ Admin endpoints for hotel approval, user management
 - ✅ ENUM-based structured data throughout
+- ✅ Multi-language i18n (EN, TR, DE)
 
-### Frontend (React)
-- ✅ Homepage with hero search, popular destinations, features
-- ✅ Search results page with filters sidebar
-- ✅ Hotel detail page with image gallery, amenities, room selection
-- ✅ Booking checkout flow with guest info
-- ✅ Booking confirmation page
-- ✅ User dashboard with bookings list
-- ✅ Login/Register with Google OAuth option
-- ✅ Language selector (EN, TR, DE)
-- ✅ Hotel Extranet Dashboard
-- ✅ Property management form
-- ✅ Room management
-- ✅ Pricing & availability calendar
-- ✅ Reservations management
-- ✅ Admin Dashboard with stats
-- ✅ Admin hotel approvals
-- ✅ Admin user management
-- ✅ Admin bookings list
+### Phase 2 (March 2026)
+- ✅ **Image Upload**: Object Storage integration for hotel and room photos
+- ✅ **Email System**: Resend integration ready (booking confirmation, cancellation emails)
+- ✅ **Review System**: Complete review/rating system with:
+  - Overall rating (1-10)
+  - Category ratings (cleanliness, comfort, location, facilities, staff, value)
+  - Hotel owner responses
+  - Reviews displayed on hotel detail page
+  - Write review dialog for past bookings
 
-### Technical Implementation
-- MongoDB database with proper projections (no _id leaks)
-- Session persistence with localStorage token backup
-- i18n translations structure
-- Responsive mobile-first design
-- Shadcn UI components
+### Technical Stack
+- Backend: FastAPI + MongoDB
+- Frontend: React + Tailwind CSS + Shadcn UI
+- Auth: JWT + Emergent Google OAuth
+- Storage: Emergent Object Storage
+- Email: Resend (ready, needs API key)
+- Payment: MOCKED (modular for iyzico)
 
 ---
 
 ## Prioritized Backlog
 
 ### P0 - Critical (Required for Production)
+- [ ] Configure Resend API key for email sending
 - [ ] Real payment integration (iyzico for Turkey)
-- [ ] Email notifications (booking confirmation, reminders)
-- [ ] Image upload for hotels and rooms
 - [ ] Password reset flow
 
-### P1 - High Priority (Phase 2)
+### P1 - High Priority (Phase 3)
 - [ ] B2B Agency Panel with commission management
 - [ ] Advanced pricing rules (seasonal, weekday/weekend)
-- [ ] Review and rating system
 - [ ] Cancellation workflow with refund processing
 - [ ] Search by map location
 
@@ -81,19 +72,16 @@ Build a scalable, production-ready Hotel Booking & Travel Platform similar to Bo
 - [ ] Saved hotels (wishlist)
 - [ ] Multiple currency support
 - [ ] Property analytics dashboard
-- [ ] Audit logs for admin actions
 
 ### P3 - Future Enhancements
 - [ ] External OTA integrations
 - [ ] Mobile app (React Native)
 - [ ] AI-powered recommendations
 - [ ] Chat support system
-- [ ] Advanced fraud detection
 
 ---
 
-## Next Tasks (Immediate)
-1. Add image upload functionality using Object Storage
-2. Implement email notifications with SendGrid/Resend
-3. Add iyzico payment integration for Turkey market
-4. Implement review/rating system for completed stays
+## Next Tasks
+1. Get Resend API key and enable email notifications
+2. Add iyzico payment integration for Turkey market
+3. Build B2B agency panel
