@@ -199,7 +199,7 @@ export default function ExtranetPricing() {
   return (
     <div className="min-h-screen bg-slate-50">
       {/* Header */}
-      <header className="bg-[#003580] text-white sticky top-0 z-50">
+      <header className="bg-metro-navy text-white sticky top-0 z-50">
         <div className="container mx-auto px-4 py-4">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-4">
@@ -277,7 +277,7 @@ export default function ExtranetPricing() {
                           key={rp.rate_plan_id}
                           className={`w-full text-left p-3 rounded-lg transition-colors ${
                             selectedRatePlan?.rate_plan_id === rp.rate_plan_id
-                              ? "bg-[#003580] text-white"
+                              ? "bg-metro-navy text-white"
                               : "bg-slate-100 hover:bg-slate-200"
                           }`}
                           onClick={() => setSelectedRatePlan(rp)}

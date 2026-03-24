@@ -60,15 +60,15 @@ export default function ExtranetDashboard() {
   return (
     <div className="min-h-screen bg-slate-50">
       {/* Header */}
-      <header className="bg-[#003580] text-white sticky top-0 z-50">
+      <header className="bg-metro-navy text-white sticky top-0 z-50">
         <div className="container mx-auto px-4 py-4">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-4">
               <Link to="/" className="flex items-center gap-2">
-                <div className="w-10 h-10 rounded-lg bg-white flex items-center justify-center">
-                  <span className="font-outfit font-bold text-xl text-[#003580]">H</span>
+                <div className="w-10 h-10 rounded-lg bg-metro-orange flex items-center justify-center">
+                  <span className="font-outfit font-bold text-xl text-white">M</span>
                 </div>
-                <span className="font-outfit font-bold text-xl hidden sm:block">HotelConnect</span>
+                <span className="font-outfit font-bold text-xl hidden sm:block">Metro Travel</span>
               </Link>
               <Badge className="bg-white/20 text-white">Extranet</Badge>
             </div>
@@ -253,7 +253,7 @@ export default function ExtranetDashboard() {
             <>
               <Link to={`/extranet/rooms/${hotels[0].hotel_id}`} className="card-dashboard p-4 hover:shadow-md transition-shadow">
                 <div className="flex items-center gap-3">
-                  <Bed className="w-8 h-8 text-[#003580]" />
+                  <Bed className="w-8 h-8 text-metro-navy" />
                   <div>
                     <div className="font-medium">Manage Rooms</div>
                     <div className="text-sm text-muted-foreground">Add & edit rooms</div>
@@ -263,7 +263,7 @@ export default function ExtranetDashboard() {
               
               <Link to={`/extranet/pricing/${hotels[0].hotel_id}`} className="card-dashboard p-4 hover:shadow-md transition-shadow">
                 <div className="flex items-center gap-3">
-                  <DollarSign className="w-8 h-8 text-[#003580]" />
+                  <DollarSign className="w-8 h-8 text-metro-navy" />
                   <div>
                     <div className="font-medium">Pricing</div>
                     <div className="text-sm text-muted-foreground">Rates & availability</div>
@@ -273,7 +273,7 @@ export default function ExtranetDashboard() {
               
               <Link to="/extranet/reservations" className="card-dashboard p-4 hover:shadow-md transition-shadow">
                 <div className="flex items-center gap-3">
-                  <Calendar className="w-8 h-8 text-[#003580]" />
+                  <Calendar className="w-8 h-8 text-metro-navy" />
                   <div>
                     <div className="font-medium">Reservations</div>
                     <div className="text-sm text-muted-foreground">Manage bookings</div>
@@ -283,7 +283,7 @@ export default function ExtranetDashboard() {
               
               <Link to={`/extranet/property/${hotels[0].hotel_id}`} className="card-dashboard p-4 hover:shadow-md transition-shadow">
                 <div className="flex items-center gap-3">
-                  <Settings className="w-8 h-8 text-[#003580]" />
+                  <Settings className="w-8 h-8 text-metro-navy" />
                   <div>
                     <div className="font-medium">Settings</div>
                     <div className="text-sm text-muted-foreground">Property details</div>

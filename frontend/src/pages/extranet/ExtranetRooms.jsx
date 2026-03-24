@@ -194,7 +194,7 @@ export default function ExtranetRooms() {
   return (
     <div className="min-h-screen bg-slate-50">
       {/* Header */}
-      <header className="bg-[#003580] text-white sticky top-0 z-50">
+      <header className="bg-metro-navy text-white sticky top-0 z-50">
         <div className="container mx-auto px-4 py-4">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-4">
@@ -204,7 +204,7 @@ export default function ExtranetRooms() {
               <span className="font-outfit font-bold text-xl">Manage Rooms</span>
             </div>
             
-            <Button onClick={openAddDialog} className="bg-white text-[#003580] hover:bg-white/90" data-testid="add-room-btn">
+            <Button onClick={openAddDialog} className="bg-white text-metro-navy hover:bg-white/90" data-testid="add-room-btn">
               <Plus className="w-4 h-4 mr-2" />
               Add Room
             </Button>

@@ -251,7 +251,7 @@ export function ReviewCard({ review }) {
             {new Date(review.created_at).toLocaleDateString()}
           </div>
         </div>
-        <div className="flex items-center gap-1 bg-[#003580] text-white px-2 py-1 rounded">
+        <div className="flex items-center gap-1 bg-metro-navy text-white px-2 py-1 rounded">
           <Star className="w-4 h-4 fill-white" />
           <span className="font-bold">{review.rating}</span>
         </div>
@@ -280,8 +280,8 @@ export function ReviewCard({ review }) {
       
       {/* Hotel Response */}
       {review.response && (
-        <div className="mt-4 ml-4 pl-4 border-l-2 border-[#003580]">
-          <div className="text-sm font-medium text-[#003580]">Hotel Response</div>
+        <div className="mt-4 ml-4 pl-4 border-l-2 border-metro-navy">
+          <div className="text-sm font-medium text-metro-navy">Hotel Response</div>
           <p className="text-sm text-muted-foreground mt-1">{review.response}</p>
           {review.response_at && (
             <div className="text-xs text-muted-foreground mt-1">

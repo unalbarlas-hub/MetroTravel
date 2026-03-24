@@ -43,7 +43,7 @@ export default function LoginPage() {
           alt="Travel"
           className="w-full h-full object-cover"
         />
-        <div className="absolute inset-0 bg-[#003580]/70 flex items-center justify-center">
+        <div className="absolute inset-0 bg-metro-navy/70 flex items-center justify-center">
           <div className="text-white text-center px-12">
             <h1 className="font-outfit font-bold text-4xl mb-4">Welcome Back</h1>
             <p className="text-white/80 text-lg">Sign in to access your bookings and manage your trips</p>
@@ -57,10 +57,10 @@ export default function LoginPage() {
           {/* Logo */}
           <Link to="/" className="flex items-center gap-2 mb-8">
             <ArrowLeft className="w-5 h-5 text-muted-foreground" />
-            <div className="w-10 h-10 rounded-lg bg-[#003580] flex items-center justify-center">
-              <span className="font-outfit font-bold text-xl text-white">H</span>
+            <div className="w-10 h-10 rounded-lg bg-metro-orange flex items-center justify-center">
+              <span className="font-outfit font-bold text-xl text-white">M</span>
             </div>
-            <span className="font-outfit font-bold text-xl text-foreground">HotelConnect</span>
+            <span className="font-outfit font-bold text-xl text-foreground">Metro Travel</span>
           </Link>
           
           <h2 className="font-outfit font-bold text-2xl mb-2">{t("login")}</h2>
@@ -131,7 +131,7 @@ export default function LoginPage() {
                 <input type="checkbox" className="rounded border-slate-300" />
                 <span>Remember me</span>
               </label>
-              <a href="#" className="text-[#003580] hover:underline">Forgot password?</a>
+              <a href="#" className="text-metro-navy hover:underline">Forgot password?</a>
             </div>
             
             <Button 
@@ -146,7 +146,7 @@ export default function LoginPage() {
           
           <p className="text-center text-sm text-muted-foreground mt-6">
             Don't have an account?{" "}
-            <Link to="/register" className="text-[#003580] hover:underline font-medium">
+            <Link to="/register" className="text-metro-navy hover:underline font-medium">
               {t("register")}
             </Link>
           </p>

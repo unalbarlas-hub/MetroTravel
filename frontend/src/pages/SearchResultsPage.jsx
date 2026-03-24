@@ -152,15 +152,15 @@ export default function SearchResultsPage() {
   return (
     <div className="min-h-screen bg-background">
       {/* Header */}
-      <header className="bg-[#003580] text-white">
+      <header className="bg-metro-navy text-white">
         <div className="container mx-auto px-4 py-4">
           <div className="flex items-center justify-between">
             <Link to="/" className="flex items-center gap-2">
               <ArrowLeft className="w-5 h-5" />
-              <div className="w-10 h-10 rounded-lg bg-white flex items-center justify-center">
-                <span className="font-outfit font-bold text-xl text-[#003580]">H</span>
+              <div className="w-10 h-10 rounded-lg bg-metro-orange flex items-center justify-center">
+                <span className="font-outfit font-bold text-xl text-white">M</span>
               </div>
-              <span className="font-outfit font-bold text-xl hidden sm:block">HotelConnect</span>
+              <span className="font-outfit font-bold text-xl hidden sm:block">Metro Travel</span>
             </Link>
           </div>
         </div>
@@ -297,7 +297,7 @@ export default function SearchResultsPage() {
                               </div>
                             </div>
                             {hotel.rating_average > 0 && (
-                              <div className="bg-[#003580] text-white px-2 py-1 rounded-lg text-sm font-bold">
+                              <div className="bg-metro-navy text-white px-2 py-1 rounded-lg text-sm font-bold">
                                 {hotel.rating_average.toFixed(1)}
                               </div>
                             )}

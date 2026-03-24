@@ -192,7 +192,7 @@ export default function ExtranetProperty() {
   return (
     <div className="min-h-screen bg-slate-50">
       {/* Header */}
-      <header className="bg-[#003580] text-white sticky top-0 z-50">
+      <header className="bg-metro-navy text-white sticky top-0 z-50">
         <div className="container mx-auto px-4 py-4">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-4">
@@ -212,7 +212,7 @@ export default function ExtranetProperty() {
           {/* Basic Info */}
           <div className="card-dashboard p-6">
             <h2 className="font-outfit font-bold text-lg mb-4 flex items-center gap-2">
-              <Hotel className="w-5 h-5 text-[#003580]" />
+              <Hotel className="w-5 h-5 text-metro-navy" />
               Basic Information
             </h2>
             
@@ -303,7 +303,7 @@ export default function ExtranetProperty() {
           {/* Location */}
           <div className="card-dashboard p-6">
             <h2 className="font-outfit font-bold text-lg mb-4 flex items-center gap-2">
-              <MapPin className="w-5 h-5 text-[#003580]" />
+              <MapPin className="w-5 h-5 text-metro-navy" />
               Location
             </h2>
             
@@ -349,7 +349,7 @@ export default function ExtranetProperty() {
           {/* Check-in/out Times */}
           <div className="card-dashboard p-6">
             <h2 className="font-outfit font-bold text-lg mb-4 flex items-center gap-2">
-              <Clock className="w-5 h-5 text-[#003580]" />
+              <Clock className="w-5 h-5 text-metro-navy" />
               Check-in / Check-out Times
             </h2>
             
@@ -416,7 +416,7 @@ export default function ExtranetProperty() {
           {/* Amenities */}
           <div className="card-dashboard p-6">
             <h2 className="font-outfit font-bold text-lg mb-4 flex items-center gap-2">
-              <Star className="w-5 h-5 text-[#003580]" />
+              <Star className="w-5 h-5 text-metro-navy" />
               Property Amenities
             </h2>
             
@@ -438,7 +438,7 @@ export default function ExtranetProperty() {
           {hotelId && (
             <div className="card-dashboard p-6">
               <h2 className="font-outfit font-bold text-lg mb-4 flex items-center gap-2">
-                <Image className="w-5 h-5 text-[#003580]" />
+                <Image className="w-5 h-5 text-metro-navy" />
                 Property Photos
               </h2>
               

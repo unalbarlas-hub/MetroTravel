@@ -58,10 +58,10 @@ export default function HomePage() {
           <div className="flex items-center justify-between">
             {/* Logo */}
             <Link to="/" className="flex items-center gap-2">
-              <div className="w-10 h-10 rounded-lg bg-white flex items-center justify-center">
-                <span className="font-outfit font-bold text-xl text-[#003580]">H</span>
+              <div className="w-10 h-10 rounded-lg bg-metro-orange flex items-center justify-center">
+                <span className="font-outfit font-bold text-xl text-white">M</span>
               </div>
-              <span className="font-outfit font-bold text-xl text-white hidden sm:block">HotelConnect</span>
+              <span className="font-outfit font-bold text-xl text-white hidden sm:block">Metro Travel</span>
             </Link>
             
             {/* Desktop Nav */}
@@ -106,7 +106,7 @@ export default function HomePage() {
                     </Button>
                   </Link>
                   <Link to="/register">
-                    <Button className="bg-white text-[#003580] hover:bg-white/90" data-testid="register-btn">
+                    <Button className="bg-white text-metro-navy hover:bg-white/90" data-testid="register-btn">
                       {t("register")}
                     </Button>
                   </Link>
@@ -183,7 +183,7 @@ export default function HomePage() {
                 <Select value={destination} onValueChange={setDestination}>
                   <SelectTrigger className="h-12 bg-white" data-testid="destination-select">
                     <MapPin className="w-4 h-4 mr-2 text-slate-400" />
-                    <SelectValue placeholder="Where to?" />
+                    <SelectValue placeholder={t("whereTo")} />
                   </SelectTrigger>
                   <SelectContent>
                     {cities.map(city => (
@@ -361,8 +361,8 @@ export default function HomePage() {
                 className="text-center p-6 bg-white rounded-xl shadow-sm"
                 style={{ animationDelay: `${index * 0.1}s` }}
               >
-                <div className="w-12 h-12 rounded-full bg-[#003580]/10 flex items-center justify-center mx-auto mb-4">
-                  <feature.icon className="w-6 h-6 text-[#003580]" />
+                <div className="w-12 h-12 rounded-full bg-metro-navy/10 flex items-center justify-center mx-auto mb-4">
+                  <feature.icon className="w-6 h-6 text-metro-navy" />
                 </div>
                 <h3 className="font-outfit font-semibold text-foreground mb-2">{feature.title}</h3>
                 <p className="text-sm text-muted-foreground">{feature.desc}</p>
@@ -373,18 +373,18 @@ export default function HomePage() {
       </section>
       
       {/* Footer */}
-      <footer className="bg-[#003580] text-white py-12">
+      <footer className="bg-metro-navy text-white py-12">
         <div className="container mx-auto px-4">
           <div className="grid grid-cols-2 md:grid-cols-4 gap-8">
             <div>
               <div className="flex items-center gap-2 mb-4">
-                <div className="w-10 h-10 rounded-lg bg-white flex items-center justify-center">
-                  <span className="font-outfit font-bold text-xl text-[#003580]">H</span>
+                <div className="w-10 h-10 rounded-lg bg-metro-orange flex items-center justify-center">
+                  <span className="font-outfit font-bold text-xl text-white">M</span>
                 </div>
-                <span className="font-outfit font-bold text-xl">HotelConnect</span>
+                <span className="font-outfit font-bold text-xl">Metro Travel</span>
               </div>
               <p className="text-white/70 text-sm">
-                Find your perfect stay in Turkey
+                Türkiye'de mükemmel konaklamanızı bulun
               </p>
             </div>
             <div>
@@ -412,7 +412,7 @@ export default function HomePage() {
             </div>
           </div>
           <div className="border-t border-white/20 mt-8 pt-8 text-center text-white/60 text-sm">
-            © 2024 HotelConnect. All rights reserved.
+            © 2024 Metro Travel. Tüm hakları saklıdır.
           </div>
         </div>
       </footer>

@@ -150,17 +150,17 @@ export default function BookingPage() {
   return (
     <div className="min-h-screen bg-background">
       {/* Header */}
-      <header className="bg-[#003580] text-white">
+      <header className="bg-metro-navy text-white">
         <div className="container mx-auto px-4 py-4">
           <div className="flex items-center gap-4">
             <button onClick={() => navigate(-1)} className="hover:bg-white/10 p-2 rounded-lg">
               <ArrowLeft className="w-5 h-5" />
             </button>
             <Link to="/" className="flex items-center gap-2">
-              <div className="w-10 h-10 rounded-lg bg-white flex items-center justify-center">
-                <span className="font-outfit font-bold text-xl text-[#003580]">H</span>
+              <div className="w-10 h-10 rounded-lg bg-metro-orange flex items-center justify-center">
+                <span className="font-outfit font-bold text-xl text-white">M</span>
               </div>
-              <span className="font-outfit font-bold text-xl hidden sm:block">HotelConnect</span>
+              <span className="font-outfit font-bold text-xl hidden sm:block">Metro Travel</span>
             </Link>
           </div>
         </div>
@@ -170,13 +170,13 @@ export default function BookingPage() {
       <div className="bg-white border-b">
         <div className="container mx-auto px-4 py-4">
           <div className="flex items-center justify-center gap-4 text-sm">
-            <div className="flex items-center gap-2 text-[#003580]">
-              <div className="w-6 h-6 rounded-full bg-[#003580] text-white flex items-center justify-center text-xs">1</div>
+            <div className="flex items-center gap-2 text-metro-navy">
+              <div className="w-6 h-6 rounded-full bg-metro-navy text-white flex items-center justify-center text-xs">1</div>
               <span className="font-medium hidden sm:inline">Your selection</span>
             </div>
             <div className="w-8 h-px bg-slate-300"></div>
-            <div className="flex items-center gap-2 text-[#003580]">
-              <div className="w-6 h-6 rounded-full bg-[#003580] text-white flex items-center justify-center text-xs">2</div>
+            <div className="flex items-center gap-2 text-metro-navy">
+              <div className="w-6 h-6 rounded-full bg-metro-navy text-white flex items-center justify-center text-xs">2</div>
               <span className="font-medium hidden sm:inline">Your details</span>
             </div>
             <div className="w-8 h-px bg-slate-300"></div>
@@ -196,7 +196,7 @@ export default function BookingPage() {
               {/* Guest Details */}
               <div className="card-dashboard p-6">
                 <h2 className="font-outfit font-bold text-xl mb-6 flex items-center gap-2">
-                  <User className="w-5 h-5 text-[#003580]" />
+                  <User className="w-5 h-5 text-metro-navy" />
                   {t("guestDetails")}
                 </h2>
                 
@@ -271,7 +271,7 @@ export default function BookingPage() {
               {/* Payment Section (Mock) */}
               <div className="card-dashboard p-6">
                 <h2 className="font-outfit font-bold text-xl mb-6 flex items-center gap-2">
-                  <CreditCard className="w-5 h-5 text-[#003580]" />
+                  <CreditCard className="w-5 h-5 text-metro-navy" />
                   Payment
                 </h2>
                 

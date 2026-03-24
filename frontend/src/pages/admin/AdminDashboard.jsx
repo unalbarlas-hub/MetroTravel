@@ -41,7 +41,7 @@ export default function AdminDashboard() {
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-4">
               <Link to="/" className="flex items-center gap-2">
-                <div className="w-10 h-10 rounded-lg bg-white flex items-center justify-center">
+                <div className="w-10 h-10 rounded-lg bg-metro-orange flex items-center justify-center">
                   <Shield className="w-6 h-6 text-slate-900" />
                 </div>
                 <span className="font-outfit font-bold text-xl">Admin Panel</span>
@@ -203,15 +203,15 @@ export default function AdminDashboard() {
             {/* Quick Links */}
             <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mt-6">
               <Link to="/admin/hotels" className="card-dashboard p-4 hover:shadow-md transition-shadow text-center">
-                <Hotel className="w-8 h-8 text-[#003580] mx-auto mb-2" />
+                <Hotel className="w-8 h-8 text-metro-navy mx-auto mb-2" />
                 <div className="font-medium">Manage Hotels</div>
               </Link>
               <Link to="/admin/users" className="card-dashboard p-4 hover:shadow-md transition-shadow text-center">
-                <Users className="w-8 h-8 text-[#003580] mx-auto mb-2" />
+                <Users className="w-8 h-8 text-metro-navy mx-auto mb-2" />
                 <div className="font-medium">Manage Users</div>
               </Link>
               <Link to="/admin/bookings" className="card-dashboard p-4 hover:shadow-md transition-shadow text-center">
-                <Calendar className="w-8 h-8 text-[#003580] mx-auto mb-2" />
+                <Calendar className="w-8 h-8 text-metro-navy mx-auto mb-2" />
                 <div className="font-medium">All Bookings</div>
               </Link>
               <div className="card-dashboard p-4 text-center opacity-50">

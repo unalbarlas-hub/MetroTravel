@@ -68,10 +68,10 @@ export default function RegisterPage() {
           alt="Travel"
           className="w-full h-full object-cover"
         />
-        <div className="absolute inset-0 bg-[#003580]/70 flex items-center justify-center">
+        <div className="absolute inset-0 bg-metro-navy/70 flex items-center justify-center">
           <div className="text-white text-center px-12">
-            <h1 className="font-outfit font-bold text-4xl mb-4">Join HotelConnect</h1>
-            <p className="text-white/80 text-lg">Create an account to start booking amazing hotels across Turkey</p>
+            <h1 className="font-outfit font-bold text-4xl mb-4">Metro Travel'a Katılın</h1>
+            <p className="text-white/80 text-lg">Türkiye genelinde harika oteller rezerve etmeye başlamak için bir hesap oluşturun</p>
           </div>
         </div>
       </div>
@@ -82,10 +82,10 @@ export default function RegisterPage() {
           {/* Logo */}
           <Link to="/" className="flex items-center gap-2 mb-8">
             <ArrowLeft className="w-5 h-5 text-muted-foreground" />
-            <div className="w-10 h-10 rounded-lg bg-[#003580] flex items-center justify-center">
-              <span className="font-outfit font-bold text-xl text-white">H</span>
+            <div className="w-10 h-10 rounded-lg bg-metro-orange flex items-center justify-center">
+              <span className="font-outfit font-bold text-xl text-white">M</span>
             </div>
-            <span className="font-outfit font-bold text-xl text-foreground">HotelConnect</span>
+            <span className="font-outfit font-bold text-xl text-foreground">Metro Travel</span>
           </Link>
           
           <h2 className="font-outfit font-bold text-2xl mb-2">{t("register")}</h2>
@@ -236,7 +236,7 @@ export default function RegisterPage() {
           
           <p className="text-center text-sm text-muted-foreground mt-6">
             Already have an account?{" "}
-            <Link to="/login" className="text-[#003580] hover:underline font-medium">
+            <Link to="/login" className="text-metro-navy hover:underline font-medium">
               {t("login")}
             </Link>
           </p>

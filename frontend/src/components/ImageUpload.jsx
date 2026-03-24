@@ -148,7 +148,7 @@ export default function ImageUpload({
                 <X className="w-4 h-4" />
               </button>
               {index === 0 && (
-                <span className="absolute bottom-2 left-2 text-xs bg-[#003580] text-white px-2 py-1 rounded">
+                <span className="absolute bottom-2 left-2 text-xs bg-metro-navy text-white px-2 py-1 rounded">
                   Primary
                 </span>
               )}

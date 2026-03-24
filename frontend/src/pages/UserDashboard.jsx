@@ -68,14 +68,14 @@ export default function UserDashboard() {
   return (
     <div className="min-h-screen bg-background">
       {/* Header */}
-      <header className="bg-[#003580] text-white">
+      <header className="bg-metro-navy text-white">
         <div className="container mx-auto px-4 py-4">
           <div className="flex items-center justify-between">
             <Link to="/" className="flex items-center gap-2">
-              <div className="w-10 h-10 rounded-lg bg-white flex items-center justify-center">
-                <span className="font-outfit font-bold text-xl text-[#003580]">H</span>
+              <div className="w-10 h-10 rounded-lg bg-metro-orange flex items-center justify-center">
+                <span className="font-outfit font-bold text-xl text-white">M</span>
               </div>
-              <span className="font-outfit font-bold text-xl hidden sm:block">HotelConnect</span>
+              <span className="font-outfit font-bold text-xl hidden sm:block">Metro Travel</span>
             </Link>
             
             <div className="flex items-center gap-4">
@@ -116,7 +116,7 @@ export default function UserDashboard() {
                     className="w-20 h-20 rounded-full mx-auto mb-3 object-cover"
                   />
                 ) : (
-                  <div className="w-20 h-20 rounded-full bg-[#003580] flex items-center justify-center mx-auto mb-3">
+                  <div className="w-20 h-20 rounded-full bg-metro-navy flex items-center justify-center mx-auto mb-3">
                     <User className="w-10 h-10 text-white" />
                   </div>
                 )}

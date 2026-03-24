@@ -55,13 +55,13 @@ export default function ConfirmationPage() {
   return (
     <div className="min-h-screen bg-background">
       {/* Header */}
-      <header className="bg-[#003580] text-white">
+      <header className="bg-metro-navy text-white">
         <div className="container mx-auto px-4 py-4">
           <Link to="/" className="flex items-center gap-2">
-            <div className="w-10 h-10 rounded-lg bg-white flex items-center justify-center">
-              <span className="font-outfit font-bold text-xl text-[#003580]">H</span>
+            <div className="w-10 h-10 rounded-lg bg-metro-orange flex items-center justify-center">
+              <span className="font-outfit font-bold text-xl text-white">M</span>
             </div>
-            <span className="font-outfit font-bold text-xl hidden sm:block">HotelConnect</span>
+            <span className="font-outfit font-bold text-xl hidden sm:block">Metro Travel</span>
           </Link>
         </div>
       </header>
@@ -106,7 +106,7 @@ export default function ConfirmationPage() {
           {/* Booking Reference */}
           <div className="card-dashboard p-6 mb-6 text-center" data-testid="booking-reference">
             <div className="text-sm text-muted-foreground mb-1">{t("bookingRef")}</div>
-            <div className="font-outfit font-bold text-3xl text-[#003580] tracking-wider">
+            <div className="font-outfit font-bold text-3xl text-metro-navy tracking-wider">
               {booking.booking_ref}
             </div>
           </div>
@@ -123,7 +123,7 @@ export default function ConfirmationPage() {
             {/* Stay Details */}
             <div className="space-y-4">
               <div className="flex items-start gap-3">
-                <Calendar className="w-5 h-5 text-[#003580] mt-0.5" />
+                <Calendar className="w-5 h-5 text-metro-navy mt-0.5" />
                 <div>
                   <div className="font-medium">Check-in</div>
                   <div className="text-muted-foreground">{booking.check_in}</div>
@@ -131,7 +131,7 @@ export default function ConfirmationPage() {
               </div>
               
               <div className="flex items-start gap-3">
-                <Calendar className="w-5 h-5 text-[#003580] mt-0.5" />
+                <Calendar className="w-5 h-5 text-metro-navy mt-0.5" />
                 <div>
                   <div className="font-medium">Check-out</div>
                   <div className="text-muted-foreground">{booking.check_out}</div>
@@ -139,7 +139,7 @@ export default function ConfirmationPage() {
               </div>
               
               <div className="flex items-start gap-3">
-                <Users className="w-5 h-5 text-[#003580] mt-0.5" />
+                <Users className="w-5 h-5 text-metro-navy mt-0.5" />
                 <div>
                   <div className="font-medium">Guests</div>
                   <div className="text-muted-foreground">
@@ -149,7 +149,7 @@ export default function ConfirmationPage() {
               </div>
               
               <div className="flex items-start gap-3">
-                <MapPin className="w-5 h-5 text-[#003580] mt-0.5" />
+                <MapPin className="w-5 h-5 text-metro-navy mt-0.5" />
                 <div>
                   <div className="font-medium">Guest</div>
                   <div className="text-muted-foreground">

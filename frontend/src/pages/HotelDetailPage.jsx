@@ -124,17 +124,17 @@ export default function HotelDetailPage() {
   return (
     <div className="min-h-screen bg-background">
       {/* Header */}
-      <header className="bg-[#003580] text-white">
+      <header className="bg-metro-navy text-white">
         <div className="container mx-auto px-4 py-4">
           <div className="flex items-center gap-4">
             <button onClick={() => navigate(-1)} className="hover:bg-white/10 p-2 rounded-lg">
               <ArrowLeft className="w-5 h-5" />
             </button>
             <Link to="/" className="flex items-center gap-2">
-              <div className="w-10 h-10 rounded-lg bg-white flex items-center justify-center">
-                <span className="font-outfit font-bold text-xl text-[#003580]">H</span>
+              <div className="w-10 h-10 rounded-lg bg-metro-orange flex items-center justify-center">
+                <span className="font-outfit font-bold text-xl text-white">M</span>
               </div>
-              <span className="font-outfit font-bold text-xl hidden sm:block">HotelConnect</span>
+              <span className="font-outfit font-bold text-xl hidden sm:block">Metro Travel</span>
             </Link>
           </div>
         </div>
@@ -174,7 +174,7 @@ export default function HotelDetailPage() {
                 </div>
                 {hotel.rating_average > 0 && (
                   <div className="text-right">
-                    <div className="bg-[#003580] text-white px-3 py-2 rounded-lg font-bold text-xl">
+                    <div className="bg-metro-navy text-white px-3 py-2 rounded-lg font-bold text-xl">
                       {hotel.rating_average.toFixed(1)}
                     </div>
                     <div className="text-xs text-muted-foreground mt-1">
@@ -205,7 +205,7 @@ export default function HotelDetailPage() {
                   return (
                     <div key={amenity} className="flex items-center gap-3">
                       <div className="w-10 h-10 rounded-lg bg-slate-100 flex items-center justify-center">
-                        <Icon className="w-5 h-5 text-[#003580]" />
+                        <Icon className="w-5 h-5 text-metro-navy" />
                       </div>
                       <span className="capitalize">{amenity.replace(/_/g, " ")}</span>
                     </div>
@@ -219,14 +219,14 @@ export default function HotelDetailPage() {
               <h2 className="font-outfit font-bold text-xl mb-4">House Rules</h2>
               <div className="grid grid-cols-2 gap-4">
                 <div className="flex items-center gap-3">
-                  <Clock className="w-5 h-5 text-[#003580]" />
+                  <Clock className="w-5 h-5 text-metro-navy" />
                   <div>
                     <div className="text-sm text-muted-foreground">Check-in</div>
                     <div className="font-semibold">{hotel.times?.check_in || "14:00"}</div>
                   </div>
                 </div>
                 <div className="flex items-center gap-3">
-                  <Clock className="w-5 h-5 text-[#003580]" />
+                  <Clock className="w-5 h-5 text-metro-navy" />
                   <div>
                     <div className="text-sm text-muted-foreground">Check-out</div>
                     <div className="font-semibold">{hotel.times?.check_out || "11:00"}</div>
@@ -240,12 +240,12 @@ export default function HotelDetailPage() {
               <div className="card-dashboard p-6" data-testid="reviews-section">
                 <div className="flex items-center justify-between mb-4">
                   <h2 className="font-outfit font-bold text-xl flex items-center gap-2">
-                    <MessageSquare className="w-5 h-5 text-[#003580]" />
+                    <MessageSquare className="w-5 h-5 text-metro-navy" />
                     Guest Reviews
                   </h2>
                   {hotel.rating_average > 0 && (
                     <div className="flex items-center gap-2">
-                      <div className="bg-[#003580] text-white px-3 py-1 rounded-lg font-bold text-lg">
+                      <div className="bg-metro-navy text-white px-3 py-1 rounded-lg font-bold text-lg">
                         {hotel.rating_average.toFixed(1)}
                       </div>
                       <span className="text-sm text-muted-foreground">
@@ -288,7 +288,7 @@ export default function HotelDetailPage() {
                       <div 
                         key={room.room_id}
                         className={`border rounded-xl p-4 transition-all ${
-                          isSelected ? "border-[#003580] bg-blue-50/50" : "border-slate-200 hover:border-slate-300"
+                          isSelected ? "border-metro-navy bg-blue-50/50" : "border-slate-200 hover:border-slate-300"
                         }`}
                         data-testid={`room-card-${room.room_id}`}
                       >
@@ -341,7 +341,7 @@ export default function HotelDetailPage() {
                                     <div 
                                       key={rp.rate_plan_id}
                                       className={`flex items-center justify-between p-3 rounded-lg cursor-pointer transition-all ${
-                                        rpSelected ? "bg-[#003580] text-white" : "bg-slate-50 hover:bg-slate-100"
+                                        rpSelected ? "bg-metro-navy text-white" : "bg-slate-50 hover:bg-slate-100"
                                       }`}
                                       onClick={() => {
                                         setSelectedRoom(room);

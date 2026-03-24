@@ -50,7 +50,7 @@ export default function AdminBookings() {
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-4">
               <Link to="/" className="flex items-center gap-2">
-                <div className="w-10 h-10 rounded-lg bg-white flex items-center justify-center">
+                <div className="w-10 h-10 rounded-lg bg-metro-orange flex items-center justify-center">
                   <Shield className="w-6 h-6 text-slate-900" />
                 </div>
                 <span className="font-outfit font-bold text-xl">Admin Panel</span>
