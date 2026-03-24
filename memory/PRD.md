@@ -61,6 +61,13 @@ Build a scalable, production-ready Hotel Booking & Travel Platform similar to Bo
 - ✅ **N+1 Query Performance Fix**: Optimized hotel search with MongoDB aggregation pipeline
 - ✅ **Turkish Localization**: Full Turkish language support verified
 - ✅ **Deployment Ready**: All deployment blockers resolved
+- ✅ **iyzico Payment Integration**: Complete payment gateway integration
+  - Checkout form initialization API
+  - Payment callback handling
+  - Payment status retrieval
+  - Mock mode for testing (works without API keys)
+  - PaymentPage.jsx for payment UI
+  - Automatic booking confirmation on successful payment
 
 ### Technical Stack
 - Backend: FastAPI + MongoDB
@@ -68,7 +75,7 @@ Build a scalable, production-ready Hotel Booking & Travel Platform similar to Bo
 - Auth: JWT + Emergent Google OAuth
 - Storage: Emergent Object Storage
 - Email: Resend (ready, needs API key)
-- Payment: MOCKED (modular for iyzico)
+- Payment: **iyzico** (integrated, needs API keys for production)
 
 ---
 
@@ -76,10 +83,11 @@ Build a scalable, production-ready Hotel Booking & Travel Platform similar to Bo
 
 ### P0 - Critical (Required for Production)
 - [ ] Configure Resend API key for email sending
-- [ ] Real payment integration (iyzico for Turkey)
+- [x] ~~Real payment integration (iyzico for Turkey)~~ **DONE - March 24, 2026**
+- [ ] Configure iyzico API keys (IYZICO_API_KEY, IYZICO_SECRET_KEY)
 - [ ] Password reset flow
 
-### P1 - High Priority (Phase 3)
+### P1 - High Priority (Phase 4)
 - [ ] B2B Agency Panel with commission management
 - [ ] Advanced pricing rules (seasonal, weekday/weekend)
 - [ ] Cancellation workflow with refund processing
@@ -99,9 +107,33 @@ Build a scalable, production-ready Hotel Booking & Travel Platform similar to Bo
 
 ---
 
+## iyzico Payment Integration
+
+### Environment Variables Required
+```
+IYZICO_API_KEY=sandbox-xxx (or live key)
+IYZICO_SECRET_KEY=sandbox-xxx (or live key)
+IYZICO_BASE_URL=https://sandbox-api.iyzipay.com (or https://api.iyzipay.com for production)
+```
+
+### API Endpoints
+- `GET /api/payment/status` - Check if iyzico is enabled
+- `POST /api/payment/initialize` - Initialize checkout form
+- `POST /api/payment/callback` - Handle payment callback
+- `GET /api/payment/retrieve/{token}` - Get payment result
+- `GET /api/payment/booking/{booking_id}` - Get payment status for booking
+- `POST /api/payment/mock-complete/{booking_id}` - Complete payment in mock mode
+
+### Test Cards (Sandbox)
+- Success: `5528790000000008` (Halkbank Master Card)
+- Failure: `4111111111111129` (Insufficient funds)
+- Any expiry date and CVV
+
+---
+
 ## Next Tasks
-1. Get Resend API key and enable email notifications
-2. Add iyzico/Stripe payment integration for real payments
+1. Configure iyzico API keys for production
+2. Get Resend API key and enable email notifications
 3. Build B2B agency panel with commission management
 4. Implement password reset flow
 5. Add map view for search results

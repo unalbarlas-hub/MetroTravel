@@ -8,6 +8,7 @@ import HomePage from "@/pages/HomePage";
 import SearchResultsPage from "@/pages/SearchResultsPage";
 import HotelDetailPage from "@/pages/HotelDetailPage";
 import BookingPage from "@/pages/BookingPage";
+import PaymentPage from "@/pages/PaymentPage";
 import ConfirmationPage from "@/pages/ConfirmationPage";
 import LoginPage from "@/pages/LoginPage";
 import RegisterPage from "@/pages/RegisterPage";
@@ -389,6 +390,7 @@ function AppRouter() {
       <Route path="/search" element={<SearchResultsPage />} />
       <Route path="/hotel/:hotelId" element={<HotelDetailPage />} />
       <Route path="/booking/:hotelId" element={<BookingPage />} />
+      <Route path="/payment/:bookingId" element={<PaymentPage />} />
       <Route path="/confirmation/:bookingId" element={<ConfirmationPage />} />
       <Route path="/login" element={<LoginPage />} />
       <Route path="/register" element={<RegisterPage />} />

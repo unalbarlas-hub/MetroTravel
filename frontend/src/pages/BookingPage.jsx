@@ -114,8 +114,16 @@ export default function BookingPage() {
       }
       
       const booking = await response.json();
-      toast.success("Booking confirmed!");
-      navigate(`/confirmation/${booking.booking_id}`);
+      
+      // Check if iyzico is enabled (payment pending)
+      if (booking.iyzico_enabled && booking.payment_status === "pending") {
+        // Redirect to payment page
+        navigate(`/payment/${booking.booking_id}`);
+      } else {
+        // Mock mode - booking is already confirmed
+        toast.success("Booking confirmed!");
+        navigate(`/confirmation/${booking.booking_id}`);
+      }
     } catch (error) {
       console.error("Booking error:", error);
       toast.error("Failed to complete booking. Please try again.");

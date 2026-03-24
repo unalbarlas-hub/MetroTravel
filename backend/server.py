@@ -1,5 +1,5 @@
-from fastapi import FastAPI, APIRouter, HTTPException, Depends, Query, Request, Response, File, UploadFile
-from fastapi.responses import JSONResponse
+from fastapi import FastAPI, APIRouter, HTTPException, Depends, Query, Request, Response, File, UploadFile, Form
+from fastapi.responses import JSONResponse, RedirectResponse
 from dotenv import load_dotenv
 from starlette.middleware.cors import CORSMiddleware
 from motor.motor_asyncio import AsyncIOMotorClient
@@ -17,6 +17,8 @@ import httpx
 import requests
 import asyncio
 import resend
+import iyzipay
+import json
 
 ROOT_DIR = Path(__file__).parent
 load_dotenv(ROOT_DIR / '.env')
@@ -42,6 +44,20 @@ RESEND_API_KEY = os.environ.get("RESEND_API_KEY")
 SENDER_EMAIL = os.environ.get("SENDER_EMAIL", "onboarding@resend.dev")
 if RESEND_API_KEY:
     resend.api_key = RESEND_API_KEY
+
+# iyzico Payment Configuration
+IYZICO_API_KEY = os.environ.get("IYZICO_API_KEY", "")
+IYZICO_SECRET_KEY = os.environ.get("IYZICO_SECRET_KEY", "")
+IYZICO_BASE_URL = os.environ.get("IYZICO_BASE_URL", "https://sandbox-api.iyzipay.com")
+IYZICO_ENABLED = bool(IYZICO_API_KEY and IYZICO_SECRET_KEY)
+
+def get_iyzico_options():
+    """Get iyzico configuration options"""
+    return {
+        'api_key': IYZICO_API_KEY,
+        'secret_key': IYZICO_SECRET_KEY,
+        'base_url': IYZICO_BASE_URL
+    }
 
 # Create the main app
 app = FastAPI(title="Hotel Booking Platform API", version="1.0.0")
@@ -500,6 +516,35 @@ class Review(BaseModel):
 
 class ReviewResponse(BaseModel):
     response: str
+
+# ================== IYZICO PAYMENT MODELS ==================
+
+class PaymentInitRequest(BaseModel):
+    """Request to initialize iyzico checkout"""
+    booking_id: str
+
+class PaymentInitResponse(BaseModel):
+    """Response from iyzico checkout initialization"""
+    status: str
+    token: Optional[str] = None
+    checkout_form_content: Optional[str] = None
+    payment_page_url: Optional[str] = None
+    message: Optional[str] = None
+    booking_id: str
+    total_price: float
+    currency: str
+
+class PaymentStatusResponse(BaseModel):
+    """Payment status response"""
+    booking_id: str
+    payment_id: Optional[str] = None
+    status: str
+    amount: float
+    currency: str
+    card_last_four: Optional[str] = None
+    card_type: Optional[str] = None
+    created_at: Optional[str] = None
+    completed_at: Optional[str] = None
 
 # ================== EMAIL FUNCTIONS ==================
 
@@ -1416,6 +1461,16 @@ async def create_booking(booking_data: BookingCreate, request: Request):
     booking_ref = generate_booking_ref()
     now = datetime.now(timezone.utc)
     
+    # Determine payment status based on iyzico availability
+    if IYZICO_ENABLED:
+        # Real payment - start as pending
+        initial_status = BookingStatus.PENDING.value
+        initial_payment_status = PaymentStatus.PENDING.value
+    else:
+        # Mock payment - auto confirm
+        initial_status = BookingStatus.CONFIRMED.value
+        initial_payment_status = PaymentStatus.PAID.value
+    
     booking_doc = {
         "booking_id": booking_id,
         "booking_ref": booking_ref,
@@ -1431,8 +1486,9 @@ async def create_booking(booking_data: BookingCreate, request: Request):
         "children_ages": booking_data.children_ages,
         "total_price": total_price,
         "currency": currency.value,
-        "status": BookingStatus.CONFIRMED.value,  # Mock payment - auto confirm
-        "payment_status": PaymentStatus.PAID.value,  # Mock payment
+        "status": initial_status,
+        "payment_status": initial_payment_status,
+        "iyzico_enabled": IYZICO_ENABLED,
         "created_at": now.isoformat(),
         "updated_at": now.isoformat()
     }
@@ -1441,14 +1497,15 @@ async def create_booking(booking_data: BookingCreate, request: Request):
     if "_id" in booking_doc:
         del booking_doc["_id"]
     
-    # Send confirmation email (async, don't wait)
-    hotel_name = hotel["name"].get("en", hotel["name"].get("tr", ""))
-    email_html = get_booking_confirmation_email(booking_doc, hotel_name)
-    asyncio.create_task(send_email(
-        booking_data.guest_info.email,
-        f"Booking Confirmed - {booking_ref}",
-        email_html
-    ))
+    # Send confirmation email only if payment is completed (mock mode)
+    if not IYZICO_ENABLED:
+        hotel_name = hotel["name"].get("en", hotel["name"].get("tr", ""))
+        email_html = get_booking_confirmation_email(booking_doc, hotel_name)
+        asyncio.create_task(send_email(
+            booking_data.guest_info.email,
+            f"Booking Confirmed - {booking_ref}",
+            email_html
+        ))
     
     return booking_doc
 
@@ -1673,6 +1730,336 @@ async def admin_stats(user: User = Depends(get_current_user)):
         "bookings": {"total": total_bookings, "confirmed": confirmed_bookings},
         "revenue": {"total": total_revenue, "currency": "TRY"}
     }
+
+# ================== IYZICO PAYMENT ROUTES ==================
+
+@api_router.get("/payment/status")
+async def get_payment_system_status():
+    """Check if iyzico payment is enabled"""
+    return {
+        "iyzico_enabled": IYZICO_ENABLED,
+        "payment_mode": "live" if IYZICO_ENABLED else "mock",
+        "message": "iyzico ödeme sistemi aktif" if IYZICO_ENABLED else "Mock ödeme modu (iyzico API anahtarları gerekli)"
+    }
+
+@api_router.post("/payment/initialize", response_model=PaymentInitResponse)
+async def initialize_payment(request: PaymentInitRequest):
+    """Initialize iyzico checkout form for a booking"""
+    
+    # Get booking
+    booking = await db.bookings.find_one({"booking_id": request.booking_id}, {"_id": 0})
+    if not booking:
+        raise HTTPException(status_code=404, detail="Rezervasyon bulunamadı")
+    
+    if booking["payment_status"] == PaymentStatus.PAID.value:
+        raise HTTPException(status_code=400, detail="Bu rezervasyon zaten ödenmiş")
+    
+    # If iyzico is not enabled, return mock response
+    if not IYZICO_ENABLED:
+        return PaymentInitResponse(
+            status="mock_mode",
+            token=None,
+            checkout_form_content=None,
+            payment_page_url=None,
+            message="iyzico API anahtarları yapılandırılmamış. Mock ödeme modu aktif.",
+            booking_id=request.booking_id,
+            total_price=booking["total_price"],
+            currency=booking["currency"]
+        )
+    
+    # Get hotel info for address
+    hotel = await db.hotels.find_one({"hotel_id": booking["hotel_id"]}, {"_id": 0})
+    
+    guest = booking["guest_info"]
+    conversation_id = f"conv_{booking['booking_id']}_{int(datetime.now().timestamp())}"
+    
+    # Prepare checkout form request
+    checkout_request = {
+        'locale': 'tr',
+        'conversationId': conversation_id,
+        'price': str(booking["total_price"]),
+        'paidPrice': str(booking["total_price"]),
+        'currency': booking["currency"],
+        'basketId': f"basket_{booking['booking_id']}",
+        'paymentGroup': 'PRODUCT',
+        'callbackUrl': f"{os.environ.get('FRONTEND_URL', 'http://localhost:3000')}/payment/callback?booking_id={booking['booking_id']}",
+        'enabledInstallments': [1, 2, 3, 6, 9, 12],
+        'buyer': {
+            'id': booking.get("user_id") or f"guest_{booking['booking_id']}",
+            'name': guest["first_name"],
+            'surname': guest["last_name"],
+            'email': guest["email"],
+            'gsmNumber': guest["phone"].replace(" ", "").replace("-", ""),
+            'identityNumber': '11111111111',  # TC Kimlik - required by iyzico
+            'registrationAddress': hotel["address"]["street"] if hotel else 'Turkey',
+            'city': hotel["address"]["city"] if hotel else 'Istanbul',
+            'country': 'Turkey',
+            'zipCode': hotel["address"].get("postal_code", "34000") if hotel else '34000'
+        },
+        'shippingAddress': {
+            'contactName': f"{guest['first_name']} {guest['last_name']}",
+            'address': hotel["address"]["street"] if hotel else 'Hotel Address',
+            'city': hotel["address"]["city"] if hotel else 'Istanbul',
+            'country': 'Turkey',
+            'zipCode': hotel["address"].get("postal_code", "34000") if hotel else '34000'
+        },
+        'billingAddress': {
+            'contactName': f"{guest['first_name']} {guest['last_name']}",
+            'address': hotel["address"]["street"] if hotel else 'Hotel Address',
+            'city': hotel["address"]["city"] if hotel else 'Istanbul',
+            'country': 'Turkey',
+            'zipCode': hotel["address"].get("postal_code", "34000") if hotel else '34000'
+        },
+        'basketItems': [
+            {
+                'id': booking['booking_id'],
+                'name': f"Otel Rezervasyonu - {booking['hotel_name']}",
+                'category1': 'Konaklama',
+                'category2': 'Otel',
+                'itemType': 'VIRTUAL',
+                'price': str(booking["total_price"])
+            }
+        ]
+    }
+    
+    try:
+        checkout_form = iyzipay.CheckoutFormInitialize()
+        result = checkout_form.create(checkout_request, get_iyzico_options())
+        response_data = json.loads(result.read().decode('utf-8'))
+        
+        if response_data.get('status') != 'success':
+            logger.error(f"iyzico init failed: {response_data}")
+            raise HTTPException(
+                status_code=400, 
+                detail=f"Ödeme başlatılamadı: {response_data.get('errorMessage', 'Bilinmeyen hata')}"
+            )
+        
+        # Store payment session in database
+        payment_session = {
+            "session_id": f"session_{uuid.uuid4().hex[:12]}",
+            "booking_id": booking["booking_id"],
+            "conversation_id": conversation_id,
+            "token": response_data.get('token'),
+            "status": "pending",
+            "amount": booking["total_price"],
+            "currency": booking["currency"],
+            "created_at": datetime.now(timezone.utc).isoformat(),
+            "expires_at": (datetime.now(timezone.utc) + timedelta(hours=1)).isoformat()
+        }
+        await db.payment_sessions.insert_one(payment_session)
+        
+        return PaymentInitResponse(
+            status="success",
+            token=response_data.get('token'),
+            checkout_form_content=response_data.get('checkoutFormContent'),
+            payment_page_url=response_data.get('paymentPageUrl'),
+            message="Ödeme formu hazır",
+            booking_id=booking["booking_id"],
+            total_price=booking["total_price"],
+            currency=booking["currency"]
+        )
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"iyzico error: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Ödeme sistemi hatası: {str(e)}")
+
+@api_router.post("/payment/callback")
+async def payment_callback(token: str = Form(...)):
+    """Handle callback from iyzico after payment"""
+    
+    if not IYZICO_ENABLED:
+        raise HTTPException(status_code=400, detail="iyzico not configured")
+    
+    try:
+        # Retrieve payment result
+        checkout_form = iyzipay.CheckoutFormRetrieve()
+        result = checkout_form.retrieve({'token': token}, get_iyzico_options())
+        response_data = json.loads(result.read().decode('utf-8'))
+        
+        # Find payment session
+        session = await db.payment_sessions.find_one({"token": token}, {"_id": 0})
+        if not session:
+            logger.error(f"Payment session not found for token: {token}")
+            raise HTTPException(status_code=404, detail="Ödeme oturumu bulunamadı")
+        
+        booking_id = session["booking_id"]
+        now = datetime.now(timezone.utc).isoformat()
+        
+        # Create payment record
+        payment_record = {
+            "payment_id": f"pay_{uuid.uuid4().hex[:12]}",
+            "booking_id": booking_id,
+            "iyzico_payment_id": response_data.get('paymentId'),
+            "conversation_id": response_data.get('conversationId'),
+            "token": token,
+            "amount": float(response_data.get('paidPrice', 0)),
+            "currency": response_data.get('currency', 'TRY'),
+            "status": response_data.get('paymentStatus', 'FAILURE'),
+            "fraud_status": response_data.get('fraudStatus'),
+            "card_last_four": response_data.get('lastFourDigits'),
+            "card_type": response_data.get('cardAssociation'),
+            "card_family": response_data.get('cardFamily'),
+            "installment": response_data.get('installment'),
+            "raw_response": response_data,
+            "created_at": now,
+            "completed_at": now if response_data.get('paymentStatus') == 'SUCCESS' else None
+        }
+        await db.payments.insert_one(payment_record)
+        
+        # Update payment session
+        await db.payment_sessions.update_one(
+            {"token": token},
+            {"$set": {"status": "completed", "completed_at": now}}
+        )
+        
+        # Update booking status
+        if response_data.get('paymentStatus') == 'SUCCESS' and response_data.get('fraudStatus') != -1:
+            await db.bookings.update_one(
+                {"booking_id": booking_id},
+                {"$set": {
+                    "status": BookingStatus.CONFIRMED.value,
+                    "payment_status": PaymentStatus.PAID.value,
+                    "updated_at": now
+                }}
+            )
+            
+            # Send confirmation email
+            booking = await db.bookings.find_one({"booking_id": booking_id}, {"_id": 0})
+            if booking:
+                email_html = get_booking_confirmation_email(booking, booking["hotel_name"])
+                asyncio.create_task(send_email(
+                    booking["guest_info"]["email"],
+                    f"Rezervasyon Onaylandı - {booking['booking_ref']}",
+                    email_html
+                ))
+            
+            return {"status": "success", "booking_id": booking_id, "message": "Ödeme başarılı"}
+        else:
+            await db.bookings.update_one(
+                {"booking_id": booking_id},
+                {"$set": {
+                    "payment_status": PaymentStatus.FAILED.value,
+                    "updated_at": now
+                }}
+            )
+            return {"status": "failed", "booking_id": booking_id, "message": "Ödeme başarısız"}
+            
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Payment callback error: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Ödeme doğrulama hatası: {str(e)}")
+
+@api_router.get("/payment/retrieve/{token}")
+async def retrieve_payment(token: str):
+    """Retrieve payment result by token (for frontend polling)"""
+    
+    if not IYZICO_ENABLED:
+        # Return mock success for testing
+        session = await db.payment_sessions.find_one({"token": token}, {"_id": 0})
+        if session:
+            return {
+                "status": "success",
+                "booking_id": session["booking_id"],
+                "payment_status": "SUCCESS",
+                "message": "Mock ödeme - başarılı"
+            }
+        raise HTTPException(status_code=404, detail="Ödeme oturumu bulunamadı")
+    
+    try:
+        checkout_form = iyzipay.CheckoutFormRetrieve()
+        result = checkout_form.retrieve({'token': token}, get_iyzico_options())
+        response_data = json.loads(result.read().decode('utf-8'))
+        
+        return {
+            "status": response_data.get('status'),
+            "payment_status": response_data.get('paymentStatus'),
+            "booking_id": response_data.get('basketId', '').replace('basket_', ''),
+            "amount": response_data.get('paidPrice'),
+            "currency": response_data.get('currency'),
+            "card_last_four": response_data.get('lastFourDigits'),
+            "card_type": response_data.get('cardAssociation'),
+            "message": response_data.get('errorMessage') if response_data.get('status') != 'success' else 'Ödeme başarılı'
+        }
+    except Exception as e:
+        logger.error(f"Payment retrieve error: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Ödeme sorgulama hatası: {str(e)}")
+
+@api_router.get("/payment/booking/{booking_id}", response_model=PaymentStatusResponse)
+async def get_booking_payment_status(booking_id: str):
+    """Get payment status for a booking"""
+    
+    booking = await db.bookings.find_one({"booking_id": booking_id}, {"_id": 0})
+    if not booking:
+        raise HTTPException(status_code=404, detail="Rezervasyon bulunamadı")
+    
+    # Check for payment record
+    payment = await db.payments.find_one({"booking_id": booking_id}, {"_id": 0})
+    
+    return PaymentStatusResponse(
+        booking_id=booking_id,
+        payment_id=payment.get("payment_id") if payment else None,
+        status=booking["payment_status"],
+        amount=booking["total_price"],
+        currency=booking["currency"],
+        card_last_four=payment.get("card_last_four") if payment else None,
+        card_type=payment.get("card_type") if payment else None,
+        created_at=payment.get("created_at") if payment else None,
+        completed_at=payment.get("completed_at") if payment else None
+    )
+
+@api_router.post("/payment/mock-complete/{booking_id}")
+async def mock_complete_payment(booking_id: str):
+    """Complete payment in mock mode (for testing without iyzico)"""
+    
+    if IYZICO_ENABLED:
+        raise HTTPException(status_code=400, detail="Mock ödeme modu sadece iyzico devre dışıyken kullanılabilir")
+    
+    booking = await db.bookings.find_one({"booking_id": booking_id}, {"_id": 0})
+    if not booking:
+        raise HTTPException(status_code=404, detail="Rezervasyon bulunamadı")
+    
+    if booking["payment_status"] == PaymentStatus.PAID.value:
+        raise HTTPException(status_code=400, detail="Bu rezervasyon zaten ödenmiş")
+    
+    now = datetime.now(timezone.utc).isoformat()
+    
+    # Update booking
+    await db.bookings.update_one(
+        {"booking_id": booking_id},
+        {"$set": {
+            "status": BookingStatus.CONFIRMED.value,
+            "payment_status": PaymentStatus.PAID.value,
+            "updated_at": now
+        }}
+    )
+    
+    # Create mock payment record
+    payment_record = {
+        "payment_id": f"mock_pay_{uuid.uuid4().hex[:12]}",
+        "booking_id": booking_id,
+        "iyzico_payment_id": None,
+        "amount": booking["total_price"],
+        "currency": booking["currency"],
+        "status": "SUCCESS",
+        "card_last_four": "0000",
+        "card_type": "MOCK",
+        "created_at": now,
+        "completed_at": now
+    }
+    await db.payments.insert_one(payment_record)
+    
+    # Send confirmation email
+    email_html = get_booking_confirmation_email(booking, booking["hotel_name"])
+    asyncio.create_task(send_email(
+        booking["guest_info"]["email"],
+        f"Rezervasyon Onaylandı - {booking['booking_ref']}",
+        email_html
+    ))
+    
+    return {"status": "success", "message": "Mock ödeme tamamlandı", "booking_id": booking_id}
 
 # ================== UTILITY ROUTES ==================
 
