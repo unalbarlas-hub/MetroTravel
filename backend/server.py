@@ -1176,61 +1176,85 @@ async def get_hotel_inventory(hotel_id: str, start_date: str, end_date: str):
 
 @api_router.post("/search")
 async def search_hotels(params: HotelSearchParams):
-    query = {"status": HotelStatus.APPROVED.value}
+    """Optimized hotel search using aggregation pipeline"""
+    
+    # Build match query
+    match_query = {"status": HotelStatus.APPROVED.value}
     
     if params.city:
-        query["address.city"] = {"$regex": params.city, "$options": "i"}
+        match_query["address.city"] = {"$regex": params.city, "$options": "i"}
     
     if params.star_ratings:
-        query["star_rating"] = {"$in": params.star_ratings}
+        match_query["star_rating"] = {"$in": params.star_ratings}
     
     if params.property_types:
-        query["property_type"] = {"$in": [pt.value for pt in params.property_types]}
+        match_query["property_type"] = {"$in": [pt.value for pt in params.property_types]}
     
     if params.amenities:
-        query["property_amenities"] = {"$all": [a.value for a in params.amenities]}
+        match_query["property_amenities"] = {"$all": [a.value for a in params.amenities]}
     
-    # Get hotels
-    hotels = await db.hotels.find(query, {"_id": 0}).to_list(1000)
+    # Use aggregation pipeline with $lookup to join collections efficiently
+    pipeline = [
+        {"$match": match_query},
+        {"$limit": 200},  # Limit initial hotels for performance
+        # Lookup rooms for each hotel
+        {"$lookup": {
+            "from": "rooms",
+            "let": {"hotel_id": "$hotel_id"},
+            "pipeline": [
+                {"$match": {
+                    "$expr": {"$and": [
+                        {"$eq": ["$hotel_id", "$$hotel_id"]},
+                        {"$eq": ["$is_active", True]},
+                        {"$gte": ["$max_adults", params.adults]}
+                    ]}
+                }},
+                {"$limit": 10},
+                {"$project": {"_id": 0, "room_id": 1, "max_adults": 1}}
+            ],
+            "as": "rooms"
+        }},
+        # Only keep hotels with matching rooms
+        {"$match": {"rooms.0": {"$exists": True}}},
+        # Lookup rate plans
+        {"$lookup": {
+            "from": "rate_plans",
+            "let": {"room_ids": "$rooms.room_id"},
+            "pipeline": [
+                {"$match": {
+                    "$expr": {"$and": [
+                        {"$in": ["$room_id", "$$room_ids"]},
+                        {"$eq": ["$is_active", True]}
+                    ]}
+                }},
+                {"$sort": {"base_price": 1}},
+                {"$limit": 5},
+                {"$project": {"_id": 0, "rate_plan_id": 1, "room_id": 1, "base_price": 1}}
+            ],
+            "as": "rate_plans"
+        }},
+        # Project final fields
+        {"$project": {
+            "_id": 0,
+            "hotel_id": 1,
+            "name": 1,
+            "property_type": 1,
+            "star_rating": 1,
+            "address": 1,
+            "rating_average": {"$ifNull": ["$rating_average", 0]},
+            "rating_count": {"$ifNull": ["$rating_count", 0]},
+            "photo": {"$arrayElemAt": ["$photos", 0]},
+            "property_amenities": {"$ifNull": ["$property_amenities", []]},
+            "min_base_price": {"$min": "$rate_plans.base_price"}
+        }}
+    ]
     
+    hotels = await db.hotels.aggregate(pipeline).to_list(200)
+    
+    # Process results
     results = []
     for hotel in hotels:
-        # Get minimum price for the date range
-        rooms = await db.rooms.find({"hotel_id": hotel["hotel_id"], "is_active": True}, {"_id": 0}).to_list(100)
-        
-        min_price = float('inf')
-        has_availability = False
-        
-        for room in rooms:
-            # Check if room fits guests
-            if room["max_adults"] < params.adults:
-                continue
-            
-            # Get rate plans
-            rate_plans = await db.rate_plans.find({"room_id": room["room_id"], "is_active": True}, {"_id": 0}).to_list(10)
-            
-            for rp in rate_plans:
-                # Check inventory for all nights
-                inventory = await db.inventory.find({
-                    "room_id": room["room_id"],
-                    "rate_plan_id": rp["rate_plan_id"],
-                    "date": {"$gte": params.check_in, "$lt": params.check_out},
-                    "available_units": {"$gt": 0}
-                }, {"_id": 0}).to_list(365)
-                
-                if len(inventory) > 0:
-                    has_availability = True
-                    total_price = sum(inv["price"] for inv in inventory)
-                    if total_price < min_price:
-                        min_price = total_price
-                elif not inventory:
-                    # No inventory set - use base price
-                    has_availability = True
-                    if rp["base_price"] < min_price:
-                        min_price = rp["base_price"]
-        
-        if min_price == float('inf'):
-            min_price = 0
+        min_price = hotel.get("min_base_price") or 0
         
         # Apply price filters
         if params.min_price and min_price < params.min_price:
@@ -1240,13 +1264,13 @@ async def search_hotels(params: HotelSearchParams):
         
         results.append({
             "hotel_id": hotel["hotel_id"],
-            "name": hotel["name"].get("en", hotel["name"].get("tr", "")),
+            "name": hotel["name"].get("en", hotel["name"].get("tr", "")) if isinstance(hotel["name"], dict) else hotel["name"],
             "property_type": hotel["property_type"],
             "star_rating": hotel["star_rating"],
             "address": hotel["address"],
             "rating_average": hotel.get("rating_average", 0),
             "rating_count": hotel.get("rating_count", 0),
-            "photo": hotel["photos"][0] if hotel.get("photos") else None,
+            "photo": hotel.get("photo"),
             "min_price": min_price,
             "currency": Currency.TRY.value,
             "property_amenities": hotel.get("property_amenities", [])
@@ -1259,13 +1283,14 @@ async def search_hotels(params: HotelSearchParams):
         results.sort(key=lambda x: x["rating_average"], reverse=True)
     
     # Paginate
+    total = len(results)
     start = (params.page - 1) * params.limit
     end = start + params.limit
     paginated = results[start:end]
     
     return {
         "results": paginated,
-        "total": len(results),
+        "total": total,
         "page": params.page,
         "limit": params.limit
     }
