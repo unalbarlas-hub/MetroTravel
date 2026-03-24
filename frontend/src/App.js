@@ -201,12 +201,20 @@ function AuthProvider({ children }) {
     }
     
     try {
+      // Check if we have a stored token
+      const storedToken = localStorage.getItem("auth_token");
+      const headers = storedToken ? { 'Authorization': `Bearer ${storedToken}` } : {};
+      
       const response = await fetch(`${API}/auth/me`, {
-        credentials: 'include'
+        credentials: 'include',
+        headers
       });
       if (response.ok) {
         const userData = await response.json();
         setUser(userData);
+      } else {
+        // Clear invalid token
+        localStorage.removeItem("auth_token");
       }
     } catch (error) {
       console.error("Auth check failed:", error);
@@ -233,6 +241,10 @@ function AuthProvider({ children }) {
     }
     
     const data = await response.json();
+    // Store token for persistence
+    if (data.token) {
+      localStorage.setItem("auth_token", data.token);
+    }
     setUser(data);
     return data;
   };
@@ -251,6 +263,10 @@ function AuthProvider({ children }) {
     }
     
     const data = await response.json();
+    // Store token for persistence
+    if (data.token) {
+      localStorage.setItem("auth_token", data.token);
+    }
     setUser(data);
     return data;
   };
@@ -260,6 +276,7 @@ function AuthProvider({ children }) {
       method: 'POST',
       credentials: 'include'
     });
+    localStorage.removeItem("auth_token");
     setUser(null);
   };
   
