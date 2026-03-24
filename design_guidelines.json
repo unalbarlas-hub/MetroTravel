@@ -1,0 +1,151 @@
+{
+  "identity": {
+    "name": "E1",
+    "role": "The Anti-AI Designer",
+    "mission": "Create a travel platform that feels like a journey, not a spreadsheet. Fusion of Swiss Clarity (Information) + Mediterranean Warmth (Emotion).",
+    "principles": [
+      "Mobile-First Command Center: The search bar is the engine.",
+      "Visual escapism: Photos are windows, not thumbnails.",
+      "Trust through clarity: No hidden fees, clear typography.",
+      "Speed is a feature: Transitions must be instant (0.2s)."
+    ]
+  },
+  "typography": {
+    "primary_font": "Outfit",
+    "secondary_font": "Inter",
+    "google_fonts_url": "https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Outfit:wght@300;400;500;600;700;800&display=swap",
+    "usage": {
+      "headings": "font-outfit font-bold tracking-tight text-primary",
+      "body": "font-inter text-slate-600 leading-relaxed",
+      "price": "font-outfit font-bold text-emerald-600",
+      "labels": "font-inter text-xs font-semibold uppercase tracking-wider text-slate-500"
+    }
+  },
+  "colors": {
+    "palette_name": "Aegean Trust",
+    "mode": "light",
+    "css_variables": {
+      "light": {
+        "--background": "210 40% 98%",
+        "--foreground": "222 47% 11%",
+        "--card": "0 0% 100%",
+        "--card-foreground": "222 47% 11%",
+        "--popover": "0 0% 100%",
+        "--popover-foreground": "222 47% 11%",
+        "--primary": "215 100% 25%",
+        "--primary-foreground": "210 40% 98%",
+        "--secondary": "210 40% 96.1%",
+        "--secondary-foreground": "222 47% 11%",
+        "--muted": "210 40% 96.1%",
+        "--muted-foreground": "215 16% 47%",
+        "--accent": "150 100% 40%",
+        "--accent-foreground": "210 40% 98%",
+        "--destructive": "0 84.2% 60.2%",
+        "--destructive-foreground": "210 40% 98%",
+        "--border": "214 32% 91%",
+        "--input": "214 32% 91%",
+        "--ring": "215 100% 50%",
+        "--radius": "0.5rem"
+      },
+      "dark": {
+        "--background": "222 47% 11%",
+        "--foreground": "210 40% 98%",
+        "--card": "222 47% 11%",
+        "--card-foreground": "210 40% 98%",
+        "--popover": "222 47% 11%",
+        "--popover-foreground": "210 40% 98%",
+        "--primary": "210 40% 98%",
+        "--primary-foreground": "222 47% 11%",
+        "--secondary": "217 32% 17%",
+        "--secondary-foreground": "210 40% 98%",
+        "--muted": "217 32% 17%",
+        "--muted-foreground": "215 20% 65%",
+        "--accent": "150 100% 40%",
+        "--accent-foreground": "210 40% 98%",
+        "--destructive": "0 62.8% 30.6%",
+        "--destructive-foreground": "210 40% 98%",
+        "--border": "217 32% 17%",
+        "--input": "217 32% 17%",
+        "--ring": "212.7 26.8% 83.9%"
+      }
+    },
+    "utility_classes": {
+      "primary_bg": "bg-[#003580]",
+      "accent_text": "text-[#10B981]",
+      "accent_bg": "bg-[#10B981]",
+      "surface_subtle": "bg-slate-50"
+    }
+  },
+  "layout_strategies": {
+    "marketing_home": {
+      "hero_style": "glass_overlay",
+      "grid_type": "bento_grid",
+      "instruction": "Hero section must utilize a full-width background image with a centered, floating 'Glass' search console. Do not put the search bar in the navbar."
+    },
+    "search_results": {
+      "grid_type": "list_view_sidebar",
+      "mobile_behavior": "bottom_sheet_filters",
+      "card_style": "horizontal_flex",
+      "instruction": "On Desktop: Sticky sidebar for filters on left, vertical list of hotels on right. On Mobile: Floating 'Filter' button that triggers a Drawer/Sheet."
+    },
+    "hotel_detail": {
+      "grid_type": "tetris_grid_gallery",
+      "booking_widget": "sticky_sidebar",
+      "instruction": "Top section: 5-image bento grid (1 large, 4 small). Right side: Sticky booking summary card. Left side: Content."
+    },
+    "dashboard_extranet": {
+      "grid_type": "high_density_grid",
+      "card_style": "bordered_flat",
+      "instruction": "Maximize data density. Use tables for room availability. Calendar views should be full-width."
+    }
+  },
+  "components": {
+    "buttons": {
+      "default": "h-11 px-8 rounded-full font-bold transition-transform hover:scale-105 active:scale-95",
+      "primary": "bg-primary text-white shadow-lg shadow-primary/20",
+      "outline": "border-2 border-primary text-primary hover:bg-primary/5",
+      "ghost": "hover:bg-slate-100 text-slate-700"
+    },
+    "cards": {
+      "marketing": "bg-white rounded-2xl shadow-xl shadow-slate-200/50 border border-slate-100 overflow-hidden",
+      "dashboard": "bg-white rounded-lg border border-slate-200 shadow-sm"
+    },
+    "inputs": {
+      "search_large": "h-14 pl-12 text-lg rounded-full border-0 ring-1 ring-slate-200 shadow-xl focus-visible:ring-primary focus-visible:ring-2",
+      "standard": "h-10 rounded-md border-slate-300 focus:border-primary"
+    }
+  },
+  "assets": {
+    "images": {
+      "hero_bg": "https://images.unsplash.com/photo-1582875489981-9f26c469e341?crop=entropy&cs=srgb&fm=jpg&ixid=M3w4NTYxOTF8MHwxfHNlYXJjaHwyfHxpc3RhbmJ1bCUyMHNreWxpbmUlMjB0dXJrZXl8ZW58MHx8fHwxNzc0MzcyNzU0fDA&ixlib=rb-4.1.0&q=85",
+      "istanbul_thumb": "https://images.unsplash.com/photo-1678398690888-b520db61c24e?crop=entropy&cs=srgb&fm=jpg&ixid=M3w4NTYxOTF8MHwxfHNlYXJjaHw0fHxpc3RhbmJ1bCUyMHNreWxpbmUlMjB0dXJrZXl8ZW58MHx8fHwxNzc0MzcyNzU0fDA&ixlib=rb-4.1.0&q=85",
+      "cappadocia_thumb": "https://images.pexels.com/photos/236296/pexels-photo-236296.jpeg?auto=compress&cs=tinysrgb&dpr=2&h=650&w=940",
+      "hotel_interior_1": "https://images.unsplash.com/photo-1629140727571-9b5c6f6267b4?crop=entropy&cs=srgb&fm=jpg&ixid=M3w4NjAzMjd8MHwxfHNlYXJjaHwxfHxsdXh1cnklMjBob3RlbCUyMHJvb20lMjBpbnRlcmlvcnxlbnwwfHx8fDE3NzQzNzI3NTV8MA&ixlib=rb-4.1.0&q=85",
+      "hotel_interior_2": "https://images.unsplash.com/photo-1754294681773-25c7a42e503b?crop=entropy&cs=srgb&fm=jpg&ixid=M3w4NjAzMjd8MHwxfHNlYXJjaHwzfHxsdXh1cnklMjBob3RlbCUyMHJvb20lMjBpbnRlcmlvcnxlbnwwfHx8fDE3NzQzNzI3NTV8MA&ixlib=rb-4.1.0&q=85",
+      "hotel_interior_3": "https://images.pexels.com/photos/6466490/pexels-photo-6466490.jpeg?auto=compress&cs=tinysrgb&dpr=2&h=650&w=940"
+    },
+    "icons": {
+      "library": "lucide-react",
+      "style": "stroke-width=1.5"
+    }
+  },
+  "motion": {
+    "library": "framer-motion",
+    "defaults": {
+      "transition": {
+        "duration": 0.3,
+        "ease": "easeInOut"
+      },
+      "hover": {
+        "scale": 1.02
+      }
+    }
+  },
+  "universal_guidelines": [
+    "Do not use generic 'Lorem Ipsum'. Use real travel terms: 'Deluxe Suite', 'Bosphorus View', 'Free Cancellation'.",
+    "Prices must always be prominent and use the Accent Color (Green).",
+    "Accessibility: Ensure text contrast on the Hero image using a dark overlay/gradient.",
+    "Mobile: Search bar collapses to a sticky top bar on scroll.",
+    "Forms: Use 'float-label' style or top-aligned labels for inputs to save horizontal space."
+  ]
+}
