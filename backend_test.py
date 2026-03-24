@@ -377,6 +377,173 @@ class HotelBookingAPITester:
             self.log(f"   Hotel has {len(data['bookings'])} bookings")
         return success
 
+    def test_image_upload_hotel(self):
+        """Test hotel image upload"""
+        if not self.hotel_id:
+            return False
+        
+        # Create a simple test image (1x1 pixel PNG)
+        import base64
+        png_data = base64.b64decode('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChAI9jU77zgAAAABJRU5ErkJggg==')
+        
+        # Simulate multipart form data upload
+        files = {'file': ('test.png', png_data, 'image/png')}
+        headers = {}
+        if self.token:
+            headers['Authorization'] = f'Bearer {self.token}'
+        
+        url = f"{self.api_url}/upload/hotel/{self.hotel_id}"
+        self.tests_run += 1
+        self.log("🔍 Testing Hotel Image Upload...")
+        
+        try:
+            response = self.session.post(url, files=files, headers=headers)
+            success = response.status_code == 200
+            
+            if success:
+                self.tests_passed += 1
+                data = response.json()
+                self.log(f"✅ Hotel Image Upload - Status: {response.status_code}")
+                self.log(f"   File uploaded: {data.get('path', 'N/A')}")
+                # Store the path for file retrieval test
+                self.uploaded_file_path = data.get('path')
+            else:
+                self.log(f"❌ Hotel Image Upload - Expected 200, got {response.status_code}")
+                if response.text:
+                    self.log(f"   Response: {response.text[:200]}")
+            
+            return success
+        except Exception as e:
+            self.log(f"❌ Hotel Image Upload - Error: {str(e)}")
+            return False
+
+    def test_image_upload_room(self):
+        """Test room image upload"""
+        if not self.room_id:
+            return False
+        
+        # Create a simple test image (1x1 pixel PNG)
+        import base64
+        png_data = base64.b64decode('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChAI9jU77zgAAAABJRU5ErkJggg==')
+        
+        files = {'file': ('room_test.png', png_data, 'image/png')}
+        headers = {}
+        if self.token:
+            headers['Authorization'] = f'Bearer {self.token}'
+        
+        url = f"{self.api_url}/upload/room/{self.room_id}"
+        self.tests_run += 1
+        self.log("🔍 Testing Room Image Upload...")
+        
+        try:
+            response = self.session.post(url, files=files, headers=headers)
+            success = response.status_code == 200
+            
+            if success:
+                self.tests_passed += 1
+                data = response.json()
+                self.log(f"✅ Room Image Upload - Status: {response.status_code}")
+                self.log(f"   File uploaded: {data.get('path', 'N/A')}")
+            else:
+                self.log(f"❌ Room Image Upload - Expected 200, got {response.status_code}")
+                if response.text:
+                    self.log(f"   Response: {response.text[:200]}")
+            
+            return success
+        except Exception as e:
+            self.log(f"❌ Room Image Upload - Error: {str(e)}")
+            return False
+
+    def test_file_retrieval(self):
+        """Test file retrieval"""
+        if not hasattr(self, 'uploaded_file_path') or not self.uploaded_file_path:
+            self.log("⚠️  Skipping file retrieval test - no uploaded file path")
+            return True  # Skip but don't fail
+        
+        url = f"{self.api_url}/files/{self.uploaded_file_path}"
+        self.tests_run += 1
+        self.log("🔍 Testing File Retrieval...")
+        
+        try:
+            response = self.session.get(url)
+            success = response.status_code == 200
+            
+            if success:
+                self.tests_passed += 1
+                self.log(f"✅ File Retrieval - Status: {response.status_code}")
+                self.log(f"   Content-Type: {response.headers.get('content-type', 'N/A')}")
+                self.log(f"   Content-Length: {len(response.content)} bytes")
+            else:
+                self.log(f"❌ File Retrieval - Expected 200, got {response.status_code}")
+            
+            return success
+        except Exception as e:
+            self.log(f"❌ File Retrieval - Error: {str(e)}")
+            return False
+
+    def test_create_review(self):
+        """Test review creation"""
+        if not self.booking_id or not self.hotel_id:
+            return False
+        
+        review_data = {
+            "hotel_id": self.hotel_id,
+            "booking_id": self.booking_id,
+            "rating": 8,
+            "title": "Great stay!",
+            "comment": "The hotel was excellent, staff was very friendly and the room was clean.",
+            "categories": {
+                "cleanliness": 9,
+                "comfort": 8,
+                "location": 7,
+                "facilities": 8,
+                "staff": 10,
+                "value": 7
+            }
+        }
+        
+        success, data = self.run_test("Create Review", "POST", "reviews", 200, review_data)
+        if success and 'review_id' in data:
+            self.review_id = data['review_id']
+            self.log(f"   Review created: {self.review_id}")
+            self.log(f"   Rating: {data.get('rating')}/10")
+        return success
+
+    def test_get_hotel_reviews(self):
+        """Test get hotel reviews"""
+        if not self.hotel_id:
+            return False
+        
+        success, data = self.run_test("Get Hotel Reviews", "GET", f"reviews/hotel/{self.hotel_id}", 200)
+        if success and 'reviews' in data:
+            self.log(f"   Found {len(data['reviews'])} reviews")
+            if data['reviews']:
+                review = data['reviews'][0]
+                self.log(f"   Latest review: {review.get('rating')}/10 by {review.get('user_name')}")
+        return success
+
+    def test_hotel_owner_review_response(self):
+        """Test hotel owner response to review"""
+        if not hasattr(self, 'review_id') or not self.review_id:
+            self.log("⚠️  Skipping review response test - no review created")
+            return True
+        
+        response_data = {
+            "response": "Thank you for your wonderful review! We're delighted you enjoyed your stay."
+        }
+        
+        success, data = self.run_test("Hotel Owner Review Response", "POST", f"reviews/{self.review_id}/response", 200, response_data)
+        if success:
+            self.log("   Hotel owner response added successfully")
+        return success
+
+    def test_pending_reviews(self):
+        """Test get pending reviews for user"""
+        success, data = self.run_test("Get Pending Reviews", "GET", "reviews/pending", 200)
+        if success and 'pending_reviews' in data:
+            self.log(f"   User has {len(data['pending_reviews'])} pending reviews")
+        return success
+
     def run_all_tests(self):
         """Run all tests in sequence"""
         self.log("🚀 Starting Hotel Booking Platform API Tests")
@@ -400,6 +567,14 @@ class HotelBookingAPITester:
             self.test_hotel_list,
             self.test_my_hotels,
             self.test_extranet_bookings,
+            # Phase 2 Features
+            self.test_image_upload_hotel,
+            self.test_image_upload_room,
+            self.test_file_retrieval,
+            self.test_create_review,
+            self.test_get_hotel_reviews,
+            self.test_hotel_owner_review_response,
+            self.test_pending_reviews,
         ]
         
         for test_method in test_methods:

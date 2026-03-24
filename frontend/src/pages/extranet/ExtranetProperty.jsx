@@ -8,7 +8,8 @@ import { Textarea } from "@/components/ui/textarea";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { toast } from "sonner";
-import { ArrowLeft, Save, Hotel, MapPin, Clock, Star } from "lucide-react";
+import { ArrowLeft, Save, Hotel, MapPin, Clock, Star, Image } from "lucide-react";
+import ImageUpload from "@/components/ImageUpload";
 
 const propertyTypes = [
   { value: "hotel", label: "Hotel" },
@@ -67,6 +68,7 @@ export default function ExtranetProperty() {
     contact_email: "",
     contact_phone: "",
     amenities: [],
+    photos: [],
   });
   
   useEffect(() => {
@@ -98,6 +100,7 @@ export default function ExtranetProperty() {
           contact_email: hotel.contact_email || "",
           contact_phone: hotel.contact_phone || "",
           amenities: hotel.property_amenities || [],
+          photos: hotel.photos || [],
         });
       }
     } catch (error) {
@@ -430,6 +433,23 @@ export default function ExtranetProperty() {
               ))}
             </div>
           </div>
+          
+          {/* Photos - Only show for existing hotels */}
+          {hotelId && (
+            <div className="card-dashboard p-6">
+              <h2 className="font-outfit font-bold text-lg mb-4 flex items-center gap-2">
+                <Image className="w-5 h-5 text-[#003580]" />
+                Property Photos
+              </h2>
+              
+              <ImageUpload
+                entityType="hotel"
+                entityId={hotelId}
+                existingImages={formData.photos}
+                onUploadComplete={(newPhotos) => setFormData(prev => ({ ...prev, photos: newPhotos }))}
+              />
+            </div>
+          )}
           
           {/* Submit */}
           <div className="flex justify-end gap-4">

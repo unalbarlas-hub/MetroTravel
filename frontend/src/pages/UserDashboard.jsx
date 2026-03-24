@@ -6,8 +6,9 @@ import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { 
   User, Calendar, MapPin, LogOut, Settings, Hotel, 
-  Clock, CheckCircle, XCircle, AlertCircle
+  Clock, CheckCircle, XCircle, AlertCircle, Star
 } from "lucide-react";
+import { WriteReviewDialog } from "@/components/Reviews";
 
 const statusColors = {
   pending: "bg-amber-100 text-amber-700",
@@ -217,9 +218,19 @@ export default function UserDashboard() {
   );
 }
 
-function BookingCard({ booking }) {
+function BookingCard({ booking, onReviewSubmitted }) {
   const { t } = useLanguage();
   const StatusIcon = statusIcons[booking.status] || AlertCircle;
+  const [hasReview, setHasReview] = useState(booking.hasReview || false);
+  
+  // Check if booking is reviewable (past checkout date, not cancelled)
+  const isPastCheckout = new Date(booking.check_out) < new Date();
+  const canReview = isPastCheckout && booking.status !== "cancelled" && !hasReview;
+  
+  const handleReviewSubmitted = () => {
+    setHasReview(true);
+    if (onReviewSubmitted) onReviewSubmitted();
+  };
   
   return (
     <div className="card-dashboard overflow-hidden" data-testid={`booking-card-${booking.booking_id}`}>
@@ -266,10 +277,18 @@ function BookingCard({ booking }) {
           <Link to={`/confirmation/${booking.booking_id}`}>
             <Button variant="outline" size="sm">View Details</Button>
           </Link>
-          {booking.status === "confirmed" && (
+          {booking.status === "confirmed" && !isPastCheckout && (
             <Button variant="ghost" size="sm" className="text-destructive">
               Cancel Booking
             </Button>
+          )}
+          {canReview && (
+            <WriteReviewDialog booking={booking} onReviewSubmitted={handleReviewSubmitted} />
+          )}
+          {hasReview && (
+            <span className="text-xs text-emerald-600 flex items-center gap-1">
+              <Star className="w-3 h-3 fill-emerald-600" /> Reviewed
+            </span>
           )}
         </div>
       </div>

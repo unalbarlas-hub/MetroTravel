@@ -6,8 +6,9 @@ import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { 
   MapPin, Star, ArrowLeft, Wifi, Car, Coffee, Waves, Dumbbell, Utensils, 
-  Wind, Tv, Bath, Mountain, Clock, Users, Check, ChevronRight, Sparkles
+  Wind, Tv, Bath, Mountain, Clock, Users, Check, ChevronRight, Sparkles, MessageSquare
 } from "lucide-react";
+import { ReviewCard } from "@/components/Reviews";
 
 const amenityIcons = {
   wifi: Wifi, tv: Tv, air_conditioning: Wind, minibar: Coffee, pool: Waves,
@@ -31,6 +32,7 @@ export default function HotelDetailPage() {
   
   const [hotel, setHotel] = useState(null);
   const [rooms, setRooms] = useState([]);
+  const [reviews, setReviews] = useState([]);
   const [loading, setLoading] = useState(true);
   const [selectedRoom, setSelectedRoom] = useState(null);
   const [selectedRatePlan, setSelectedRatePlan] = useState(null);
@@ -59,6 +61,13 @@ export default function HotelDetailPage() {
         setRooms(availData.rooms || []);
       } else {
         setRooms(hotelData.rooms || []);
+      }
+      
+      // Load reviews
+      const reviewsRes = await fetch(`${API}/reviews/hotel/${hotelId}?limit=5`);
+      if (reviewsRes.ok) {
+        const reviewsData = await reviewsRes.json();
+        setReviews(reviewsData.reviews || []);
       }
     } catch (error) {
       console.error("Error loading hotel:", error);
@@ -225,6 +234,43 @@ export default function HotelDetailPage() {
                 </div>
               </div>
             </div>
+            
+            {/* Reviews Section */}
+            {(hotel.rating_count > 0 || reviews.length > 0) && (
+              <div className="card-dashboard p-6" data-testid="reviews-section">
+                <div className="flex items-center justify-between mb-4">
+                  <h2 className="font-outfit font-bold text-xl flex items-center gap-2">
+                    <MessageSquare className="w-5 h-5 text-[#003580]" />
+                    Guest Reviews
+                  </h2>
+                  {hotel.rating_average > 0 && (
+                    <div className="flex items-center gap-2">
+                      <div className="bg-[#003580] text-white px-3 py-1 rounded-lg font-bold text-lg">
+                        {hotel.rating_average.toFixed(1)}
+                      </div>
+                      <span className="text-sm text-muted-foreground">
+                        Based on {hotel.rating_count} reviews
+                      </span>
+                    </div>
+                  )}
+                </div>
+                
+                {reviews.length > 0 ? (
+                  <div className="space-y-4">
+                    {reviews.map(review => (
+                      <ReviewCard key={review.review_id} review={review} />
+                    ))}
+                    {hotel.rating_count > 5 && (
+                      <Button variant="outline" className="w-full">
+                        See all {hotel.rating_count} reviews
+                      </Button>
+                    )}
+                  </div>
+                ) : (
+                  <p className="text-muted-foreground">No reviews yet.</p>
+                )}
+              </div>
+            )}
             
             {/* Rooms Section */}
             <div className="card-dashboard p-6" data-testid="rooms-section">

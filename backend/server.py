@@ -1,4 +1,4 @@
-from fastapi import FastAPI, APIRouter, HTTPException, Depends, Query, Request, Response
+from fastapi import FastAPI, APIRouter, HTTPException, Depends, Query, Request, Response, File, UploadFile
 from fastapi.responses import JSONResponse
 from dotenv import load_dotenv
 from starlette.middleware.cors import CORSMiddleware
@@ -14,6 +14,9 @@ from enum import Enum
 import bcrypt
 import jwt
 import httpx
+import requests
+import asyncio
+import resend
 
 ROOT_DIR = Path(__file__).parent
 load_dotenv(ROOT_DIR / '.env')
@@ -28,6 +31,18 @@ JWT_SECRET = os.environ.get('JWT_SECRET', 'hotel-booking-secret-key-change-in-pr
 JWT_ALGORITHM = "HS256"
 JWT_EXPIRATION_HOURS = 168  # 7 days
 
+# Object Storage Configuration
+STORAGE_URL = "https://integrations.emergentagent.com/objstore/api/v1/storage"
+EMERGENT_KEY = os.environ.get("EMERGENT_LLM_KEY")
+APP_NAME = "hotelconnect"
+storage_key = None
+
+# Email Configuration
+RESEND_API_KEY = os.environ.get("RESEND_API_KEY")
+SENDER_EMAIL = os.environ.get("SENDER_EMAIL", "onboarding@resend.dev")
+if RESEND_API_KEY:
+    resend.api_key = RESEND_API_KEY
+
 # Create the main app
 app = FastAPI(title="Hotel Booking Platform API", version="1.0.0")
 
@@ -37,6 +52,56 @@ api_router = APIRouter(prefix="/api")
 # Configure logging
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
 logger = logging.getLogger(__name__)
+
+# ================== STORAGE FUNCTIONS ==================
+
+def init_storage():
+    """Initialize object storage. Call once at startup."""
+    global storage_key
+    if storage_key:
+        return storage_key
+    if not EMERGENT_KEY:
+        logger.warning("EMERGENT_LLM_KEY not set, storage disabled")
+        return None
+    try:
+        resp = requests.post(f"{STORAGE_URL}/init", json={"emergent_key": EMERGENT_KEY}, timeout=30)
+        resp.raise_for_status()
+        storage_key = resp.json()["storage_key"]
+        logger.info("Storage initialized successfully")
+        return storage_key
+    except Exception as e:
+        logger.error(f"Storage init failed: {e}")
+        return None
+
+def put_object(path: str, data: bytes, content_type: str) -> dict:
+    """Upload file to storage."""
+    key = init_storage()
+    if not key:
+        raise HTTPException(status_code=503, detail="Storage not available")
+    resp = requests.put(
+        f"{STORAGE_URL}/objects/{path}",
+        headers={"X-Storage-Key": key, "Content-Type": content_type},
+        data=data, timeout=120
+    )
+    resp.raise_for_status()
+    return resp.json()
+
+def get_object(path: str) -> tuple:
+    """Download file from storage."""
+    key = init_storage()
+    if not key:
+        raise HTTPException(status_code=503, detail="Storage not available")
+    resp = requests.get(
+        f"{STORAGE_URL}/objects/{path}",
+        headers={"X-Storage-Key": key}, timeout=60
+    )
+    resp.raise_for_status()
+    return resp.content, resp.headers.get("Content-Type", "application/octet-stream")
+
+MIME_TYPES = {
+    "jpg": "image/jpeg", "jpeg": "image/jpeg", "png": "image/png",
+    "gif": "image/gif", "webp": "image/webp", "pdf": "application/pdf"
+}
 
 # ================== ENUMS ==================
 
@@ -408,6 +473,145 @@ class HotelSearchResult(BaseModel):
     min_price: float
     currency: Currency
     property_amenities: List[PropertyAmenity]
+
+# Review Models
+class ReviewCreate(BaseModel):
+    hotel_id: str
+    booking_id: str
+    rating: int = Field(ge=1, le=10)
+    title: Optional[str] = None
+    comment: Optional[str] = None
+    categories: Optional[Dict[str, int]] = None  # cleanliness, comfort, location, facilities, staff, value
+
+class Review(BaseModel):
+    model_config = ConfigDict(extra="ignore")
+    review_id: str
+    hotel_id: str
+    booking_id: str
+    user_id: str
+    user_name: str
+    rating: int
+    title: Optional[str] = None
+    comment: Optional[str] = None
+    categories: Optional[Dict[str, int]] = None
+    created_at: datetime
+    response: Optional[str] = None  # Hotel owner response
+    response_at: Optional[datetime] = None
+
+class ReviewResponse(BaseModel):
+    response: str
+
+# ================== EMAIL FUNCTIONS ==================
+
+async def send_email(to: str, subject: str, html_content: str) -> bool:
+    """Send email using Resend. Returns True if successful."""
+    if not RESEND_API_KEY:
+        logger.warning("RESEND_API_KEY not set, email not sent")
+        return False
+    
+    try:
+        params = {
+            "from": SENDER_EMAIL,
+            "to": [to],
+            "subject": subject,
+            "html": html_content
+        }
+        await asyncio.to_thread(resend.Emails.send, params)
+        logger.info(f"Email sent to {to}")
+        return True
+    except Exception as e:
+        logger.error(f"Failed to send email: {e}")
+        return False
+
+def get_booking_confirmation_email(booking: dict, hotel_name: str) -> str:
+    """Generate booking confirmation email HTML."""
+    return f"""
+    <!DOCTYPE html>
+    <html>
+    <head>
+        <meta charset="utf-8">
+        <style>
+            body {{ font-family: Arial, sans-serif; line-height: 1.6; color: #333; }}
+            .container {{ max-width: 600px; margin: 0 auto; padding: 20px; }}
+            .header {{ background: #003580; color: white; padding: 20px; text-align: center; }}
+            .content {{ padding: 20px; background: #f9f9f9; }}
+            .booking-ref {{ font-size: 24px; font-weight: bold; color: #003580; }}
+            .details {{ background: white; padding: 15px; margin: 15px 0; border-radius: 8px; }}
+            .footer {{ text-align: center; padding: 20px; color: #666; font-size: 12px; }}
+        </style>
+    </head>
+    <body>
+        <div class="container">
+            <div class="header">
+                <h1>HotelConnect</h1>
+                <p>Booking Confirmation</p>
+            </div>
+            <div class="content">
+                <p>Dear {booking['guest_info']['first_name']},</p>
+                <p>Your booking has been confirmed!</p>
+                
+                <div class="details">
+                    <p><strong>Booking Reference:</strong></p>
+                    <p class="booking-ref">{booking['booking_ref']}</p>
+                </div>
+                
+                <div class="details">
+                    <p><strong>Hotel:</strong> {hotel_name}</p>
+                    <p><strong>Check-in:</strong> {booking['check_in']}</p>
+                    <p><strong>Check-out:</strong> {booking['check_out']}</p>
+                    <p><strong>Guests:</strong> {booking['adults']} adults{f", {booking['children']} children" if booking.get('children', 0) > 0 else ""}</p>
+                    <p><strong>Total:</strong> ₺{booking['total_price']:,.0f}</p>
+                </div>
+                
+                <p>Thank you for booking with HotelConnect!</p>
+            </div>
+            <div class="footer">
+                <p>© 2024 HotelConnect. All rights reserved.</p>
+            </div>
+        </div>
+    </body>
+    </html>
+    """
+
+def get_cancellation_email(booking: dict, hotel_name: str) -> str:
+    """Generate booking cancellation email HTML."""
+    return f"""
+    <!DOCTYPE html>
+    <html>
+    <head>
+        <meta charset="utf-8">
+        <style>
+            body {{ font-family: Arial, sans-serif; line-height: 1.6; color: #333; }}
+            .container {{ max-width: 600px; margin: 0 auto; padding: 20px; }}
+            .header {{ background: #dc2626; color: white; padding: 20px; text-align: center; }}
+            .content {{ padding: 20px; background: #f9f9f9; }}
+            .booking-ref {{ font-size: 24px; font-weight: bold; color: #dc2626; }}
+            .footer {{ text-align: center; padding: 20px; color: #666; font-size: 12px; }}
+        </style>
+    </head>
+    <body>
+        <div class="container">
+            <div class="header">
+                <h1>HotelConnect</h1>
+                <p>Booking Cancellation</p>
+            </div>
+            <div class="content">
+                <p>Dear {booking['guest_info']['first_name']},</p>
+                <p>Your booking has been cancelled.</p>
+                
+                <p><strong>Booking Reference:</strong> <span class="booking-ref">{booking['booking_ref']}</span></p>
+                <p><strong>Hotel:</strong> {hotel_name}</p>
+                <p><strong>Original dates:</strong> {booking['check_in']} - {booking['check_out']}</p>
+                
+                <p>If you have any questions, please contact our support team.</p>
+            </div>
+            <div class="footer">
+                <p>© 2024 HotelConnect. All rights reserved.</p>
+            </div>
+        </div>
+    </body>
+    </html>
+    """
 
 # ================== AUTH HELPERS ==================
 
@@ -1212,6 +1416,15 @@ async def create_booking(booking_data: BookingCreate, request: Request):
     if "_id" in booking_doc:
         del booking_doc["_id"]
     
+    # Send confirmation email (async, don't wait)
+    hotel_name = hotel["name"].get("en", hotel["name"].get("tr", ""))
+    email_html = get_booking_confirmation_email(booking_doc, hotel_name)
+    asyncio.create_task(send_email(
+        booking_data.guest_info.email,
+        f"Booking Confirmed - {booking_ref}",
+        email_html
+    ))
+    
     return booking_doc
 
 @api_router.get("/bookings")
@@ -1270,6 +1483,14 @@ async def cancel_booking(booking_id: str, user: User = Depends(get_current_user)
             "updated_at": datetime.now(timezone.utc).isoformat()
         }}
     )
+    
+    # Send cancellation email
+    email_html = get_cancellation_email(booking, booking["hotel_name"])
+    asyncio.create_task(send_email(
+        booking["guest_info"]["email"],
+        f"Booking Cancelled - {booking['booking_ref']}",
+        email_html
+    ))
     
     return {"message": "Booking cancelled", "refund_status": "processed"}
 
@@ -1463,6 +1684,283 @@ async def get_amenities():
 @api_router.get("/")
 async def root():
     return {"message": "Hotel Booking Platform API", "version": "1.0.0"}
+
+# ================== IMAGE UPLOAD ROUTES ==================
+
+@api_router.post("/upload/hotel/{hotel_id}")
+async def upload_hotel_image(
+    hotel_id: str,
+    file: UploadFile = File(...),
+    user: User = Depends(get_current_user)
+):
+    """Upload hotel photo"""
+    # Verify hotel ownership
+    hotel = await db.hotels.find_one({"hotel_id": hotel_id}, {"_id": 0})
+    if not hotel:
+        raise HTTPException(status_code=404, detail="Hotel not found")
+    
+    if user.role != UserRole.ADMIN and hotel["owner_id"] != user.user_id:
+        raise HTTPException(status_code=403, detail="Not authorized")
+    
+    # Validate file type
+    ext = file.filename.split(".")[-1].lower() if "." in file.filename else "bin"
+    if ext not in ["jpg", "jpeg", "png", "gif", "webp"]:
+        raise HTTPException(status_code=400, detail="Invalid file type. Allowed: jpg, jpeg, png, gif, webp")
+    
+    # Upload to storage
+    path = f"{APP_NAME}/hotels/{hotel_id}/{uuid.uuid4()}.{ext}"
+    data = await file.read()
+    content_type = MIME_TYPES.get(ext, "application/octet-stream")
+    
+    try:
+        result = put_object(path, data, content_type)
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Upload failed: {str(e)}")
+    
+    # Store reference in files collection
+    file_id = f"file_{uuid.uuid4().hex[:12]}"
+    now = datetime.now(timezone.utc)
+    await db.files.insert_one({
+        "file_id": file_id,
+        "storage_path": result["path"],
+        "original_filename": file.filename,
+        "content_type": content_type,
+        "size": result.get("size", len(data)),
+        "entity_type": "hotel",
+        "entity_id": hotel_id,
+        "uploaded_by": user.user_id,
+        "is_deleted": False,
+        "created_at": now.isoformat()
+    })
+    
+    # Add to hotel photos array
+    await db.hotels.update_one(
+        {"hotel_id": hotel_id},
+        {"$push": {"photos": result["path"]}}
+    )
+    
+    return {"file_id": file_id, "path": result["path"], "message": "Photo uploaded successfully"}
+
+@api_router.post("/upload/room/{room_id}")
+async def upload_room_image(
+    room_id: str,
+    file: UploadFile = File(...),
+    user: User = Depends(get_current_user)
+):
+    """Upload room photo"""
+    # Verify room ownership
+    room = await db.rooms.find_one({"room_id": room_id}, {"_id": 0})
+    if not room:
+        raise HTTPException(status_code=404, detail="Room not found")
+    
+    hotel = await db.hotels.find_one({"hotel_id": room["hotel_id"]}, {"_id": 0})
+    if user.role != UserRole.ADMIN and hotel["owner_id"] != user.user_id:
+        raise HTTPException(status_code=403, detail="Not authorized")
+    
+    # Validate file type
+    ext = file.filename.split(".")[-1].lower() if "." in file.filename else "bin"
+    if ext not in ["jpg", "jpeg", "png", "gif", "webp"]:
+        raise HTTPException(status_code=400, detail="Invalid file type")
+    
+    # Upload to storage
+    path = f"{APP_NAME}/rooms/{room_id}/{uuid.uuid4()}.{ext}"
+    data = await file.read()
+    content_type = MIME_TYPES.get(ext, "application/octet-stream")
+    
+    try:
+        result = put_object(path, data, content_type)
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Upload failed: {str(e)}")
+    
+    # Store reference
+    file_id = f"file_{uuid.uuid4().hex[:12]}"
+    now = datetime.now(timezone.utc)
+    await db.files.insert_one({
+        "file_id": file_id,
+        "storage_path": result["path"],
+        "original_filename": file.filename,
+        "content_type": content_type,
+        "size": result.get("size", len(data)),
+        "entity_type": "room",
+        "entity_id": room_id,
+        "uploaded_by": user.user_id,
+        "is_deleted": False,
+        "created_at": now.isoformat()
+    })
+    
+    # Add to room photos array
+    await db.rooms.update_one(
+        {"room_id": room_id},
+        {"$push": {"photos": result["path"]}}
+    )
+    
+    return {"file_id": file_id, "path": result["path"], "message": "Photo uploaded successfully"}
+
+@api_router.get("/files/{path:path}")
+async def get_file(path: str, auth: str = Query(None)):
+    """Serve file from storage. Supports query param auth for img src tags."""
+    # Try to get file record
+    record = await db.files.find_one({"storage_path": path, "is_deleted": False}, {"_id": 0})
+    
+    try:
+        data, content_type = get_object(path)
+        return Response(content=data, media_type=record.get("content_type", content_type) if record else content_type)
+    except Exception as e:
+        raise HTTPException(status_code=404, detail="File not found")
+
+@api_router.delete("/files/{file_id}")
+async def delete_file(file_id: str, user: User = Depends(get_current_user)):
+    """Soft delete a file"""
+    file_record = await db.files.find_one({"file_id": file_id, "is_deleted": False}, {"_id": 0})
+    if not file_record:
+        raise HTTPException(status_code=404, detail="File not found")
+    
+    # Check ownership
+    if user.role != UserRole.ADMIN and file_record["uploaded_by"] != user.user_id:
+        raise HTTPException(status_code=403, detail="Not authorized")
+    
+    # Soft delete
+    await db.files.update_one({"file_id": file_id}, {"$set": {"is_deleted": True}})
+    
+    # Remove from entity photos array
+    if file_record["entity_type"] == "hotel":
+        await db.hotels.update_one(
+            {"hotel_id": file_record["entity_id"]},
+            {"$pull": {"photos": file_record["storage_path"]}}
+        )
+    elif file_record["entity_type"] == "room":
+        await db.rooms.update_one(
+            {"room_id": file_record["entity_id"]},
+            {"$pull": {"photos": file_record["storage_path"]}}
+        )
+    
+    return {"message": "File deleted"}
+
+# ================== REVIEW ROUTES ==================
+
+@api_router.post("/reviews")
+async def create_review(review_data: ReviewCreate, user: User = Depends(get_current_user)):
+    """Create a review for a completed booking"""
+    # Verify booking exists and belongs to user
+    booking = await db.bookings.find_one({"booking_id": review_data.booking_id}, {"_id": 0})
+    if not booking:
+        raise HTTPException(status_code=404, detail="Booking not found")
+    
+    if booking.get("user_id") != user.user_id:
+        raise HTTPException(status_code=403, detail="Not authorized to review this booking")
+    
+    # Check if checkout date has passed
+    checkout_date = datetime.strptime(booking["check_out"], "%Y-%m-%d")
+    if checkout_date > datetime.now():
+        raise HTTPException(status_code=400, detail="Can only review after checkout")
+    
+    # Check if already reviewed
+    existing = await db.reviews.find_one({"booking_id": review_data.booking_id}, {"_id": 0})
+    if existing:
+        raise HTTPException(status_code=400, detail="Booking already reviewed")
+    
+    review_id = f"review_{uuid.uuid4().hex[:12]}"
+    now = datetime.now(timezone.utc)
+    
+    review_doc = {
+        "review_id": review_id,
+        "hotel_id": review_data.hotel_id,
+        "booking_id": review_data.booking_id,
+        "user_id": user.user_id,
+        "user_name": user.name,
+        "rating": review_data.rating,
+        "title": review_data.title,
+        "comment": review_data.comment,
+        "categories": review_data.categories,
+        "created_at": now.isoformat(),
+        "response": None,
+        "response_at": None
+    }
+    
+    await db.reviews.insert_one(review_doc)
+    
+    # Update hotel rating
+    await update_hotel_rating(review_data.hotel_id)
+    
+    if "_id" in review_doc:
+        del review_doc["_id"]
+    return review_doc
+
+async def update_hotel_rating(hotel_id: str):
+    """Recalculate and update hotel average rating"""
+    pipeline = [
+        {"$match": {"hotel_id": hotel_id}},
+        {"$group": {"_id": None, "avg": {"$avg": "$rating"}, "count": {"$sum": 1}}}
+    ]
+    result = await db.reviews.aggregate(pipeline).to_list(1)
+    
+    if result:
+        await db.hotels.update_one(
+            {"hotel_id": hotel_id},
+            {"$set": {
+                "rating_average": round(result[0]["avg"], 1),
+                "rating_count": result[0]["count"]
+            }}
+        )
+
+@api_router.get("/reviews/hotel/{hotel_id}")
+async def get_hotel_reviews(hotel_id: str, page: int = 1, limit: int = 10):
+    """Get reviews for a hotel"""
+    skip = (page - 1) * limit
+    reviews = await db.reviews.find({"hotel_id": hotel_id}, {"_id": 0}).sort("created_at", -1).skip(skip).limit(limit).to_list(limit)
+    total = await db.reviews.count_documents({"hotel_id": hotel_id})
+    
+    return {"reviews": reviews, "total": total, "page": page}
+
+@api_router.get("/reviews/booking/{booking_id}")
+async def get_booking_review(booking_id: str):
+    """Get review for a specific booking"""
+    review = await db.reviews.find_one({"booking_id": booking_id}, {"_id": 0})
+    return {"review": review}
+
+@api_router.post("/reviews/{review_id}/respond")
+async def respond_to_review(review_id: str, response_data: ReviewResponse, user: User = Depends(get_current_user)):
+    """Hotel owner responds to a review"""
+    review = await db.reviews.find_one({"review_id": review_id}, {"_id": 0})
+    if not review:
+        raise HTTPException(status_code=404, detail="Review not found")
+    
+    # Verify hotel ownership
+    hotel = await db.hotels.find_one({"hotel_id": review["hotel_id"]}, {"_id": 0})
+    if user.role != UserRole.ADMIN and hotel.get("owner_id") != user.user_id:
+        raise HTTPException(status_code=403, detail="Not authorized")
+    
+    await db.reviews.update_one(
+        {"review_id": review_id},
+        {"$set": {
+            "response": response_data.response,
+            "response_at": datetime.now(timezone.utc).isoformat()
+        }}
+    )
+    
+    return {"message": "Response added"}
+
+@api_router.get("/reviews/pending")
+async def get_pending_reviews(user: User = Depends(get_current_user)):
+    """Get bookings that can be reviewed (completed, not yet reviewed)"""
+    # Get user's completed bookings
+    bookings = await db.bookings.find({
+        "user_id": user.user_id,
+        "status": {"$in": [BookingStatus.CONFIRMED.value, BookingStatus.COMPLETED.value]}
+    }, {"_id": 0}).to_list(100)
+    
+    pending = []
+    now = datetime.now()
+    
+    for booking in bookings:
+        checkout_date = datetime.strptime(booking["check_out"], "%Y-%m-%d")
+        if checkout_date < now:
+            # Check if already reviewed
+            existing = await db.reviews.find_one({"booking_id": booking["booking_id"]}, {"_id": 0})
+            if not existing:
+                pending.append(booking)
+    
+    return {"bookings": pending}
 
 # Include router
 app.include_router(api_router)
