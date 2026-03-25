@@ -18,6 +18,7 @@ import ExtranetProperty from "@/pages/extranet/ExtranetProperty";
 import ExtranetRooms from "@/pages/extranet/ExtranetRooms";
 import ExtranetPricing from "@/pages/extranet/ExtranetPricing";
 import ExtranetReservations from "@/pages/extranet/ExtranetReservations";
+import HotelRegister from "@/pages/extranet/HotelRegister";
 import AdminDashboard from "@/pages/admin/AdminDashboard";
 import AdminHotels from "@/pages/admin/AdminHotels";
 import AdminUsers from "@/pages/admin/AdminUsers";
@@ -433,6 +434,11 @@ function AppRouter() {
       <Route path="/extranet/reservations/:hotelId?" element={
         <ProtectedRoute allowedRoles={['hotel_owner', 'admin']}>
           <ExtranetReservations />
+        </ProtectedRoute>
+      } />
+      <Route path="/extranet/register" element={
+        <ProtectedRoute allowedRoles={['hotel_owner', 'admin', 'customer']}>
+          <HotelRegister />
         </ProtectedRoute>
       } />
       
