@@ -154,6 +154,21 @@ Build a scalable, production-ready Hotel Booking & Travel Platform similar to Bo
     - Photo upload with drag & drop
     - Multi-language support (TR/EN)
 
+- ✅ **Market-Based Pricing with Currency Support** (COMPLETED - March 25, 2026)
+  - **20 Country Markets**: TR, DE, GB, FR, NL, BE, RU, UA, PL, US, CA, AU, IT, ES, AT, CH, SE, NO, DK, SA
+  - **14 Currencies**: TRY, EUR, USD, GBP, RUB, SAR, AUD, CAD, CHF, SEK, NOK, DKK, PLN, UAH
+  - **Exchange Rates**: TRY-based conversion system, admin-configurable
+  - **API Endpoints**:
+    - `GET /api/markets` - List all 20 markets with currencies & flags
+    - `GET /api/exchange-rates` - Get current exchange rates
+    - `PUT /api/exchange-rates` - Admin update rates
+    - `GET /api/convert-price` - Convert between currencies
+    - `POST /api/market-pricing` - Update pricing for single market
+    - `POST /api/market-pricing/bulk` - Bulk update multiple markets
+    - `GET /api/market-pricing/{room_id}` - Get market-specific prices
+    - `GET /api/market-pricing/{room_id}/all-markets` - Get all markets pricing
+  - **Frontend Integration**: ExtranetPricing page with market selection, bulk update dialog
+
 ### Technical Stack
 - Backend: FastAPI + MongoDB
 - Frontend: React + Tailwind CSS + Shadcn UI
@@ -174,7 +189,8 @@ Build a scalable, production-ready Hotel Booking & Travel Platform similar to Bo
 
 ### P1 - High Priority (Phase 4)
 - [x] ~~B2B Agency Panel with commission management~~ **DONE - March 25, 2026**
-- [ ] Backend support for Market-based pricing (20 markets UI exists, backend schema update needed)
+- [x] ~~Backend support for Market-based pricing (20 markets)~~ **DONE - March 25, 2026**
+- [x] ~~Currency conversion with exchange rates~~ **DONE - March 25, 2026**
 - [ ] Cancellation workflow with refund processing
 - [ ] Search by map location
 
@@ -281,10 +297,11 @@ IYZICO_BASE_URL=https://sandbox-api.iyzipay.com (or https://api.iyzipay.com for 
 5. Add map view for search results
 
 ## Test Reports
+- `/app/test_reports/iteration_8.json` - Market Pricing & Currency Support (100% pass rate)
 - `/app/test_reports/iteration_7.json` - Registration Backend/Frontend Sync (100% pass rate)
 - `/app/test_reports/iteration_6.json` - Premium Registration Pages (100% pass rate)
 - `/app/test_reports/iteration_5.json` - B2B Agency Panel (100% pass rate)
 - `/app/test_reports/iteration_4.json` - Extranet Pricing
 - `/app/test_reports/iteration_3.json` - Brand & Core features
-- Backend: 36+ tests passed
+- Backend: 62+ tests passed
 - Frontend: All panels fully functional
