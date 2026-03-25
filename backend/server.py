@@ -832,8 +832,26 @@ def get_booking_confirmation_email(booking: dict, hotel_name: str) -> str:
     </html>
     """
 
-def get_cancellation_email(booking: dict, hotel_name: str) -> str:
-    """Generate booking cancellation email HTML."""
+def get_cancellation_email(booking: dict, hotel_name: str, refund_amount: float = 0, penalty_amount: float = 0) -> str:
+    """Generate booking cancellation email HTML with refund details."""
+    currency = booking.get("currency", "TRY")
+    currency_symbol = {"TRY": "₺", "EUR": "€", "USD": "$", "GBP": "£"}.get(currency, currency)
+    
+    refund_section = ""
+    if refund_amount > 0:
+        refund_section = f"""
+        <div style="background: #dcfce7; padding: 15px; border-radius: 8px; margin: 15px 0;">
+            <p style="margin: 0; color: #166534;"><strong>İade Tutarı:</strong> {currency_symbol}{refund_amount:,.2f}</p>
+            <p style="margin: 5px 0 0 0; font-size: 12px; color: #166534;">İade işleminiz 5-10 iş günü içinde hesabınıza yansıyacaktır.</p>
+        </div>
+        """
+    if penalty_amount > 0:
+        refund_section += f"""
+        <div style="background: #fef2f2; padding: 15px; border-radius: 8px; margin: 15px 0;">
+            <p style="margin: 0; color: #991b1b;"><strong>İptal Cezası:</strong> {currency_symbol}{penalty_amount:,.2f}</p>
+        </div>
+        """
+    
     return f"""
     <!DOCTYPE html>
     <html>
@@ -842,30 +860,32 @@ def get_cancellation_email(booking: dict, hotel_name: str) -> str:
         <style>
             body {{ font-family: Arial, sans-serif; line-height: 1.6; color: #333; }}
             .container {{ max-width: 600px; margin: 0 auto; padding: 20px; }}
-            .header {{ background: #dc2626; color: white; padding: 20px; text-align: center; }}
+            .header {{ background: #0d1a30; color: white; padding: 20px; text-align: center; border-radius: 8px 8px 0 0; }}
             .content {{ padding: 20px; background: #f9f9f9; }}
-            .booking-ref {{ font-size: 24px; font-weight: bold; color: #dc2626; }}
+            .booking-ref {{ font-size: 24px; font-weight: bold; color: #f97316; }}
             .footer {{ text-align: center; padding: 20px; color: #666; font-size: 12px; }}
         </style>
     </head>
     <body>
         <div class="container">
             <div class="header">
-                <h1>HotelConnect</h1>
-                <p>Booking Cancellation</p>
+                <h1 style="margin: 0;">Metro Travel</h1>
+                <p style="margin: 10px 0 0 0; opacity: 0.9;">Rezervasyon İptali</p>
             </div>
             <div class="content">
-                <p>Dear {booking['guest_info']['first_name']},</p>
-                <p>Your booking has been cancelled.</p>
+                <p>Sayın {booking['guest_info']['first_name']},</p>
+                <p>Rezervasyonunuz iptal edilmiştir.</p>
                 
-                <p><strong>Booking Reference:</strong> <span class="booking-ref">{booking['booking_ref']}</span></p>
-                <p><strong>Hotel:</strong> {hotel_name}</p>
-                <p><strong>Original dates:</strong> {booking['check_in']} - {booking['check_out']}</p>
+                <p><strong>Rezervasyon No:</strong> <span class="booking-ref">{booking['booking_ref']}</span></p>
+                <p><strong>Otel:</strong> {hotel_name}</p>
+                <p><strong>Tarihler:</strong> {booking['check_in']} - {booking['check_out']}</p>
                 
-                <p>If you have any questions, please contact our support team.</p>
+                {refund_section}
+                
+                <p>Sorularınız için destek ekibimizle iletişime geçebilirsiniz.</p>
             </div>
             <div class="footer">
-                <p>© 2024 HotelConnect. All rights reserved.</p>
+                <p>© 2024 Metro Travel. Tüm hakları saklıdır.</p>
             </div>
         </div>
     </body>
@@ -2116,6 +2136,38 @@ async def cancel_booking(booking_id: str, user: User = Depends(get_current_user)
     if booking["status"] == BookingStatus.CANCELLED.value:
         raise HTTPException(status_code=400, detail="Booking already cancelled")
     
+    # Get hotel cancellation policy
+    hotel = await db.hotels.find_one({"hotel_id": booking["hotel_id"]}, {"_id": 0})
+    cancellation_policy = hotel.get("cancellation_policy", {})
+    free_cancel_days = cancellation_policy.get("free_cancellation_days", 1)
+    penalty_pct = cancellation_policy.get("penalty_percentage", 100.0)
+    
+    # Calculate refund amount based on policy
+    check_in_date = datetime.fromisoformat(booking["check_in"]).replace(tzinfo=timezone.utc)
+    now = datetime.now(timezone.utc)
+    days_until_checkin = (check_in_date - now).days
+    
+    total_price = booking["total_price"]
+    refund_amount = 0.0
+    penalty_amount = 0.0
+    refund_status = "full_refund"
+    
+    if days_until_checkin >= free_cancel_days:
+        # Free cancellation
+        refund_amount = total_price
+        penalty_amount = 0
+        refund_status = "full_refund"
+    elif days_until_checkin > 0:
+        # Partial refund
+        penalty_amount = total_price * (penalty_pct / 100)
+        refund_amount = total_price - penalty_amount
+        refund_status = "partial_refund"
+    else:
+        # No refund (check-in day or past)
+        refund_amount = 0
+        penalty_amount = total_price
+        refund_status = "no_refund"
+    
     # Restore inventory
     for room in booking["rooms"]:
         await db.inventory.update_many(
@@ -2127,24 +2179,174 @@ async def cancel_booking(booking_id: str, user: User = Depends(get_current_user)
             {"$inc": {"available_units": room["quantity"], "sold_units": -room["quantity"]}}
         )
     
+    # Create cancellation record
+    cancellation_id = f"cancel_{uuid.uuid4().hex[:12]}"
+    cancellation_doc = {
+        "cancellation_id": cancellation_id,
+        "booking_id": booking_id,
+        "booking_ref": booking["booking_ref"],
+        "user_id": user.user_id,
+        "hotel_id": booking["hotel_id"],
+        "original_amount": total_price,
+        "refund_amount": refund_amount,
+        "penalty_amount": penalty_amount,
+        "refund_status": refund_status,
+        "days_until_checkin": days_until_checkin,
+        "policy_applied": {
+            "free_cancellation_days": free_cancel_days,
+            "penalty_percentage": penalty_pct
+        },
+        "cancelled_by": user.user_id,
+        "cancelled_at": now.isoformat()
+    }
+    await db.cancellations.insert_one(cancellation_doc)
+    
+    # Update booking status
     await db.bookings.update_one(
         {"booking_id": booking_id},
         {"$set": {
             "status": BookingStatus.CANCELLED.value,
-            "payment_status": PaymentStatus.REFUNDED.value,
-            "updated_at": datetime.now(timezone.utc).isoformat()
+            "payment_status": PaymentStatus.REFUNDED.value if refund_amount > 0 else PaymentStatus.CANCELLED.value,
+            "cancellation_id": cancellation_id,
+            "refund_amount": refund_amount,
+            "penalty_amount": penalty_amount,
+            "cancelled_at": now.isoformat(),
+            "updated_at": now.isoformat()
         }}
     )
     
     # Send cancellation email
-    email_html = get_cancellation_email(booking, booking["hotel_name"])
+    email_html = get_cancellation_email(booking, booking.get("hotel_name", ""), refund_amount, penalty_amount)
     asyncio.create_task(send_email(
         booking["guest_info"]["email"],
         f"Booking Cancelled - {booking['booking_ref']}",
         email_html
     ))
     
-    return {"message": "Booking cancelled", "refund_status": "processed"}
+    return {
+        "message": "Booking cancelled",
+        "cancellation_id": cancellation_id,
+        "refund_status": refund_status,
+        "refund_amount": refund_amount,
+        "penalty_amount": penalty_amount,
+        "currency": booking.get("currency", "TRY")
+    }
+
+@api_router.get("/bookings/{booking_id}/cancellation-info")
+async def get_cancellation_info(booking_id: str, user: User = Depends(get_current_user)):
+    """Get cancellation policy and potential refund amount for a booking"""
+    booking = await db.bookings.find_one({"booking_id": booking_id}, {"_id": 0})
+    if not booking:
+        raise HTTPException(status_code=404, detail="Booking not found")
+    
+    # Check ownership
+    if booking.get("user_id") != user.user_id and user.role != UserRole.ADMIN:
+        raise HTTPException(status_code=403, detail="Not authorized")
+    
+    if booking["status"] == BookingStatus.CANCELLED.value:
+        return {"can_cancel": False, "reason": "Booking already cancelled"}
+    
+    # Get hotel cancellation policy
+    hotel = await db.hotels.find_one({"hotel_id": booking["hotel_id"]}, {"_id": 0})
+    cancellation_policy = hotel.get("cancellation_policy", {})
+    free_cancel_days = cancellation_policy.get("free_cancellation_days", 1)
+    penalty_pct = cancellation_policy.get("penalty_percentage", 100.0)
+    
+    # Calculate potential refund
+    check_in_date = datetime.fromisoformat(booking["check_in"]).replace(tzinfo=timezone.utc)
+    now = datetime.now(timezone.utc)
+    days_until_checkin = (check_in_date - now).days
+    
+    total_price = booking["total_price"]
+    
+    if days_until_checkin >= free_cancel_days:
+        refund_amount = total_price
+        penalty_amount = 0
+        refund_type = "full"
+        message = f"{free_cancel_days} gün öncesine kadar ücretsiz iptal"
+    elif days_until_checkin > 0:
+        penalty_amount = total_price * (penalty_pct / 100)
+        refund_amount = total_price - penalty_amount
+        refund_type = "partial"
+        message = f"%{penalty_pct} ceza uygulanacak"
+    else:
+        refund_amount = 0
+        penalty_amount = total_price
+        refund_type = "none"
+        message = "Giriş tarihinde iptal - iade yapılmaz"
+    
+    free_cancel_deadline = (check_in_date - timedelta(days=free_cancel_days)).isoformat()
+    
+    return {
+        "can_cancel": True,
+        "booking_ref": booking["booking_ref"],
+        "check_in": booking["check_in"],
+        "total_price": total_price,
+        "currency": booking.get("currency", "TRY"),
+        "days_until_checkin": days_until_checkin,
+        "policy": {
+            "free_cancellation_days": free_cancel_days,
+            "free_cancel_deadline": free_cancel_deadline,
+            "penalty_percentage": penalty_pct
+        },
+        "refund_preview": {
+            "type": refund_type,
+            "refund_amount": refund_amount,
+            "penalty_amount": penalty_amount,
+            "message": message
+        }
+    }
+
+@api_router.get("/cancellations")
+async def get_user_cancellations(user: User = Depends(get_current_user)):
+    """Get user's cancellation history"""
+    cancellations = await db.cancellations.find(
+        {"user_id": user.user_id},
+        {"_id": 0}
+    ).sort("cancelled_at", -1).to_list(100)
+    return {"cancellations": cancellations}
+
+@api_router.get("/admin/cancellations")
+async def get_all_cancellations(
+    user: User = Depends(get_current_user),
+    status: str = None,
+    page: int = 1,
+    limit: int = 50
+):
+    """Admin: Get all cancellations with filtering"""
+    if user.role != UserRole.ADMIN:
+        raise HTTPException(status_code=403, detail="Admin only")
+    
+    query = {}
+    if status:
+        query["refund_status"] = status
+    
+    skip = (page - 1) * limit
+    cancellations = await db.cancellations.find(query, {"_id": 0}).sort("cancelled_at", -1).skip(skip).limit(limit).to_list(limit)
+    total = await db.cancellations.count_documents(query)
+    
+    return {"cancellations": cancellations, "total": total, "page": page}
+
+@api_router.post("/admin/refunds/{cancellation_id}/process")
+async def process_refund(cancellation_id: str, user: User = Depends(get_current_user)):
+    """Admin: Mark refund as processed"""
+    if user.role != UserRole.ADMIN:
+        raise HTTPException(status_code=403, detail="Admin only")
+    
+    cancellation = await db.cancellations.find_one({"cancellation_id": cancellation_id})
+    if not cancellation:
+        raise HTTPException(status_code=404, detail="Cancellation not found")
+    
+    await db.cancellations.update_one(
+        {"cancellation_id": cancellation_id},
+        {"$set": {
+            "refund_processed": True,
+            "refund_processed_at": datetime.now(timezone.utc).isoformat(),
+            "processed_by": user.user_id
+        }}
+    )
+    
+    return {"message": "Refund marked as processed", "cancellation_id": cancellation_id}
 
 # ================== HOTEL OWNER ROUTES ==================
 

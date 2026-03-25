@@ -4,9 +4,18 @@ import { useLanguage, useAuth, API } from "@/App";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+  DialogFooter,
+} from "@/components/ui/dialog";
+import { toast } from "sonner";
 import { 
   User, Calendar, MapPin, LogOut, Settings, Hotel, 
-  Clock, CheckCircle, XCircle, AlertCircle, Star
+  Clock, CheckCircle, XCircle, AlertCircle, Star, Loader2, Ban
 } from "lucide-react";
 import { WriteReviewDialog } from "@/components/Reviews";
 
@@ -31,6 +40,10 @@ export default function UserDashboard() {
   
   const [bookings, setBookings] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [cancelDialogOpen, setCancelDialogOpen] = useState(false);
+  const [selectedBooking, setSelectedBooking] = useState(null);
+  const [cancellationInfo, setCancellationInfo] = useState(null);
+  const [cancelling, setCancelling] = useState(false);
   
   useEffect(() => {
     loadBookings();
@@ -38,8 +51,10 @@ export default function UserDashboard() {
   
   const loadBookings = async () => {
     try {
+      const token = localStorage.getItem("auth_token");
       const response = await fetch(`${API}/bookings`, {
-        credentials: "include"
+        credentials: "include",
+        headers: token ? { Authorization: `Bearer ${token}` } : {}
       });
       if (response.ok) {
         const data = await response.json();
@@ -49,6 +64,59 @@ export default function UserDashboard() {
       console.error("Error loading bookings:", error);
     } finally {
       setLoading(false);
+    }
+  };
+  
+  const handleOpenCancelDialog = async (booking) => {
+    setSelectedBooking(booking);
+    setCancelDialogOpen(true);
+    
+    try {
+      const token = localStorage.getItem("auth_token");
+      const response = await fetch(`${API}/bookings/${booking.booking_id}/cancellation-info`, {
+        credentials: "include",
+        headers: token ? { Authorization: `Bearer ${token}` } : {}
+      });
+      if (response.ok) {
+        const info = await response.json();
+        setCancellationInfo(info);
+      }
+    } catch (error) {
+      console.error("Error loading cancellation info:", error);
+    }
+  };
+  
+  const handleCancelBooking = async () => {
+    if (!selectedBooking) return;
+    
+    setCancelling(true);
+    try {
+      const token = localStorage.getItem("auth_token");
+      const response = await fetch(`${API}/bookings/${selectedBooking.booking_id}/cancel`, {
+        method: "POST",
+        credentials: "include",
+        headers: token ? { Authorization: `Bearer ${token}` } : {}
+      });
+      
+      if (response.ok) {
+        const result = await response.json();
+        toast.success(
+          result.refund_status === "full_refund" 
+            ? "Rezervasyon iptal edildi. Tam iade yapılacak." 
+            : result.refund_status === "partial_refund"
+            ? `Rezervasyon iptal edildi. ₺${result.refund_amount.toLocaleString()} iade edilecek.`
+            : "Rezervasyon iptal edildi."
+        );
+        setCancelDialogOpen(false);
+        loadBookings();
+      } else {
+        const error = await response.json();
+        toast.error(error.detail || "İptal işlemi başarısız");
+      }
+    } catch (error) {
+      toast.error("Bağlantı hatası");
+    } finally {
+      setCancelling(false);
     }
   };
   
@@ -177,7 +245,12 @@ export default function UserDashboard() {
                 ) : (
                   <div className="space-y-4">
                     {upcomingBookings.map(booking => (
-                      <BookingCard key={booking.booking_id} booking={booking} />
+                      <BookingCard 
+                        key={booking.booking_id} 
+                        booking={booking}
+                        onCancel={() => handleOpenCancelDialog(booking)}
+                        showCancelButton={true}
+                      />
                     ))}
                   </div>
                 )}
@@ -214,11 +287,97 @@ export default function UserDashboard() {
           </div>
         </div>
       </main>
+      
+      {/* Cancel Booking Dialog */}
+      <Dialog open={cancelDialogOpen} onOpenChange={setCancelDialogOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Ban className="w-5 h-5 text-red-500" />
+              Rezervasyon İptali
+            </DialogTitle>
+            <DialogDescription>
+              {selectedBooking?.booking_ref} numaralı rezervasyonunuzu iptal etmek istediğinizden emin misiniz?
+            </DialogDescription>
+          </DialogHeader>
+          
+          {cancellationInfo && (
+            <div className="space-y-4">
+              <div className="bg-slate-50 rounded-lg p-4 space-y-2">
+                <div className="flex justify-between text-sm">
+                  <span className="text-muted-foreground">Giriş Tarihi:</span>
+                  <span className="font-medium">{cancellationInfo.check_in}</span>
+                </div>
+                <div className="flex justify-between text-sm">
+                  <span className="text-muted-foreground">Toplam Tutar:</span>
+                  <span className="font-medium">₺{cancellationInfo.total_price?.toLocaleString()}</span>
+                </div>
+                <div className="flex justify-between text-sm">
+                  <span className="text-muted-foreground">Girişe Kalan:</span>
+                  <span className="font-medium">{cancellationInfo.days_until_checkin} gün</span>
+                </div>
+              </div>
+              
+              {cancellationInfo.refund_preview && (
+                <div className={`rounded-lg p-4 ${
+                  cancellationInfo.refund_preview.type === 'full' 
+                    ? 'bg-emerald-50 border border-emerald-200' 
+                    : cancellationInfo.refund_preview.type === 'partial'
+                    ? 'bg-amber-50 border border-amber-200'
+                    : 'bg-red-50 border border-red-200'
+                }`}>
+                  <p className={`text-sm font-medium ${
+                    cancellationInfo.refund_preview.type === 'full' 
+                      ? 'text-emerald-700' 
+                      : cancellationInfo.refund_preview.type === 'partial'
+                      ? 'text-amber-700'
+                      : 'text-red-700'
+                  }`}>
+                    {cancellationInfo.refund_preview.message}
+                  </p>
+                  <div className="mt-2 space-y-1">
+                    {cancellationInfo.refund_preview.refund_amount > 0 && (
+                      <p className="text-sm text-emerald-600">
+                        İade: ₺{cancellationInfo.refund_preview.refund_amount.toLocaleString()}
+                      </p>
+                    )}
+                    {cancellationInfo.refund_preview.penalty_amount > 0 && (
+                      <p className="text-sm text-red-600">
+                        Ceza: ₺{cancellationInfo.refund_preview.penalty_amount.toLocaleString()}
+                      </p>
+                    )}
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
+          
+          <DialogFooter className="gap-2 sm:gap-0">
+            <Button variant="outline" onClick={() => setCancelDialogOpen(false)}>
+              Vazgeç
+            </Button>
+            <Button 
+              variant="destructive" 
+              onClick={handleCancelBooking}
+              disabled={cancelling}
+            >
+              {cancelling ? (
+                <>
+                  <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                  İptal Ediliyor...
+                </>
+              ) : (
+                "Rezervasyonu İptal Et"
+              )}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
 
-function BookingCard({ booking, onReviewSubmitted }) {
+function BookingCard({ booking, onReviewSubmitted, onCancel, showCancelButton = false }) {
   const { t } = useLanguage();
   const StatusIcon = statusIcons[booking.status] || AlertCircle;
   const [hasReview, setHasReview] = useState(booking.hasReview || false);
@@ -277,9 +436,15 @@ function BookingCard({ booking, onReviewSubmitted }) {
           <Link to={`/confirmation/${booking.booking_id}`}>
             <Button variant="outline" size="sm">View Details</Button>
           </Link>
-          {booking.status === "confirmed" && !isPastCheckout && (
-            <Button variant="ghost" size="sm" className="text-destructive">
-              Cancel Booking
+          {showCancelButton && booking.status === "confirmed" && !isPastCheckout && (
+            <Button 
+              variant="ghost" 
+              size="sm" 
+              className="text-destructive hover:bg-red-50"
+              onClick={onCancel}
+            >
+              <Ban className="w-4 h-4 mr-1" />
+              İptal Et
             </Button>
           )}
           {canReview && (

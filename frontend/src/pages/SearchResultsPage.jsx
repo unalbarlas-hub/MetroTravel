@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, lazy, Suspense } from "react";
 import { useSearchParams, useNavigate, Link } from "react-router-dom";
 import { useLanguage, API } from "@/App";
 import { Button } from "@/components/ui/button";
@@ -7,7 +7,10 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Slider } from "@/components/ui/slider";
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from "@/components/ui/sheet";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { MapPin, Star, Filter, SlidersHorizontal, ArrowLeft, Wifi, Car, Coffee, Waves, Dumbbell, Utensils } from "lucide-react";
+import { MapPin, Star, Filter, SlidersHorizontal, ArrowLeft, Wifi, Car, Coffee, Waves, Dumbbell, Utensils, Map, List, Loader2 } from "lucide-react";
+
+// Lazy load map component
+const HotelMap = lazy(() => import("@/components/HotelMap"));
 
 const amenityIcons = {
   wifi: Wifi,
@@ -31,6 +34,8 @@ export default function SearchResultsPage() {
   const [priceRange, setPriceRange] = useState([0, 10000]);
   const [selectedStars, setSelectedStars] = useState([]);
   const [selectedAmenities, setSelectedAmenities] = useState([]);
+  const [viewMode, setViewMode] = useState("list"); // "list" or "map"
+  const [selectedHotel, setSelectedHotel] = useState(null);
   
   const city = searchParams.get("city") || "";
   const checkIn = searchParams.get("checkIn") || "";
@@ -203,6 +208,28 @@ export default function SearchResultsPage() {
               </div>
               
               <div className="flex items-center gap-3">
+                {/* View Mode Toggle */}
+                <div className="hidden sm:flex items-center bg-slate-100 rounded-lg p-1">
+                  <Button
+                    variant={viewMode === "list" ? "default" : "ghost"}
+                    size="sm"
+                    onClick={() => setViewMode("list")}
+                    className={viewMode === "list" ? "bg-metro-navy text-white" : ""}
+                  >
+                    <List className="w-4 h-4 mr-1" />
+                    Liste
+                  </Button>
+                  <Button
+                    variant={viewMode === "map" ? "default" : "ghost"}
+                    size="sm"
+                    onClick={() => setViewMode("map")}
+                    className={viewMode === "map" ? "bg-metro-navy text-white" : ""}
+                  >
+                    <Map className="w-4 h-4 mr-1" />
+                    Harita
+                  </Button>
+                </div>
+
                 {/* Mobile Filter Button */}
                 <Sheet>
                   <SheetTrigger asChild>
@@ -236,8 +263,24 @@ export default function SearchResultsPage() {
               </div>
             </div>
             
-            {/* Results List */}
-            {loading ? (
+            {/* Results - List or Map View */}
+            {viewMode === "map" ? (
+              <div className="h-[600px] rounded-xl overflow-hidden border">
+                <Suspense fallback={
+                  <div className="w-full h-full flex items-center justify-center bg-slate-100">
+                    <Loader2 className="w-8 h-8 animate-spin text-metro-orange" />
+                  </div>
+                }>
+                  <HotelMap
+                    hotels={results}
+                    selectedHotel={selectedHotel}
+                    onSelectHotel={setSelectedHotel}
+                    onClose={() => setViewMode("list")}
+                    city={city}
+                  />
+                </Suspense>
+              </div>
+            ) : loading ? (
               <div className="space-y-4">
                 {[1, 2, 3].map(i => (
                   <div key={i} className="card-dashboard p-4 animate-pulse">

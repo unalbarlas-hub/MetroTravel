@@ -1,0 +1,118 @@
+{
+  "summary": "Completed comprehensive testing of Map View and Cancellation/Refund Workflow features. All 17 backend tests passed (100%). Frontend map view with Leaflet/OpenStreetMap and cancellation dialog with refund preview are fully functional.",
+  "backend_issues": {
+    "critical": [],
+    "minor": []
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": []
+  },
+  "passed_tests": [
+    "Backend: GET /api/markets returns 200 with 20 markets",
+    "Backend: GET /api/markets has required fields (code, name, currency, flag)",
+    "Backend: GET /api/markets includes Turkey (TR) with TRY currency",
+    "Backend: GET /api/bookings/{id}/cancellation-info requires authentication (401)",
+    "Backend: GET /api/bookings/{id}/cancellation-info returns refund preview",
+    "Backend: GET /api/bookings/{id}/cancellation-info has correct structure (policy, refund_preview)",
+    "Backend: GET /api/bookings/{id}/cancellation-info returns 404 for invalid booking",
+    "Backend: GET /api/cancellations requires authentication (401)",
+    "Backend: GET /api/cancellations returns user's cancellation list",
+    "Backend: GET /api/admin/cancellations requires admin role (403)",
+    "Backend: GET /api/admin/cancellations returns list with pagination",
+    "Backend: POST /api/bookings/{id}/cancel requires authentication (401)",
+    "Backend: POST /api/bookings/{id}/cancel returns 404 for invalid booking",
+    "Backend: POST /api/bookings/{id}/cancel successfully cancels booking with refund calculation",
+    "Backend: POST /api/search returns hotels for Istanbul",
+    "Backend: Search results have required fields for map view (hotel_id, name, min_price, address)",
+    "Frontend: Map view toggle (Liste/Harita buttons) working",
+    "Frontend: Leaflet map with OpenStreetMap tiles loads correctly",
+    "Frontend: Hotel price markers displayed on map (₺4,200, ₺2,500, ₺1,600)",
+    "Frontend: Map legend shows hotel count (3 otel bulundu)",
+    "Frontend: Map close button (X) present",
+    "Frontend: UserDashboard loads with booking tabs (Upcoming, Past, Cancelled)",
+    "Frontend: Cancel button (İptal Et) visible on confirmed bookings",
+    "Frontend: Cancel dialog opens with booking details",
+    "Frontend: Cancel dialog shows refund preview (İade: ₺4,500)",
+    "Frontend: Cancel dialog shows policy info (1 gün öncesine kadar ücretsiz iptal)",
+    "Frontend: Cancel dialog has Vazgeç and Rezervasyonu İptal Et buttons"
+  ],
+  "test_report_links": [
+    "/app/backend/tests/test_cancellation_and_map.py",
+    "/app/test_reports/pytest/cancellation_map_results.xml"
+  ],
+  "action_items": [],
+  "critical_code_review_comments": [],
+  "updated_files": [
+    "/app/backend/tests/test_cancellation_and_map.py"
+  ],
+  "success_rate": {
+    "backend": "100% (17/17 tests passed)",
+    "frontend": "100% (all map view and cancellation features working)"
+  },
+  "test_credentials": {
+    "admin": {"email": "admin@metrotravel.com", "password": "admin123456"},
+    "customer": {"email": "can@outlook.com", "password": "customer123"},
+    "test_user_session": "test_session_elif_1774470471027 (for user_0f0e4c51ce1b)"
+  },
+  "features_tested": {
+    "map_view": {
+      "component": "HotelMap.jsx",
+      "page": "SearchResultsPage.jsx",
+      "status": "Working",
+      "features": [
+        "List/Map toggle buttons (Liste/Harita)",
+        "Leaflet map with OpenStreetMap tiles",
+        "Hotel price markers with TRY prices",
+        "Map legend showing hotel count",
+        "Close button to return to list view",
+        "City-based map centering (Istanbul coordinates)"
+      ]
+    },
+    "cancellation_info_endpoint": {
+      "endpoint": "GET /api/bookings/{id}/cancellation-info",
+      "status": "Working",
+      "features": [
+        "Returns can_cancel, booking_ref, check_in, total_price",
+        "Returns days_until_checkin calculation",
+        "Returns policy (free_cancellation_days, penalty_percentage)",
+        "Returns refund_preview (type, refund_amount, penalty_amount, message)"
+      ]
+    },
+    "cancel_booking_endpoint": {
+      "endpoint": "POST /api/bookings/{id}/cancel",
+      "status": "Working",
+      "features": [
+        "Calculates refund based on hotel cancellation policy",
+        "Creates cancellation record in database",
+        "Updates booking status to cancelled",
+        "Restores inventory for cancelled rooms",
+        "Returns cancellation_id, refund_status, refund_amount, penalty_amount"
+      ]
+    },
+    "cancellation_list_endpoints": {
+      "endpoints": [
+        "GET /api/cancellations (user's cancellations)",
+        "GET /api/admin/cancellations (admin view with pagination)"
+      ],
+      "status": "Working"
+    },
+    "user_dashboard_cancel_dialog": {
+      "component": "UserDashboard.jsx",
+      "status": "Working",
+      "features": [
+        "Cancel button (İptal Et) on confirmed upcoming bookings",
+        "Dialog shows booking reference and check-in date",
+        "Dialog shows total price and days until check-in",
+        "Dialog shows refund preview with policy message",
+        "Green highlight for full refund, amber for partial, red for no refund",
+        "Vazgeç (Cancel) and Rezervasyonu İptal Et (Confirm) buttons"
+      ]
+    }
+  },
+  "seed_data_creation": "Test booking created and cleaned up: booking_test_cancel_mn6hxeo1",
+  "retest_needed": false,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "Map view uses Leaflet with OpenStreetMap tiles. HotelMap component at /app/frontend/src/components/HotelMap.jsx handles map rendering with price markers. Cancellation workflow uses policy-based refund calculation (free_cancellation_days, penalty_percentage). Cancel dialog in UserDashboard fetches /api/bookings/{id}/cancellation-info for refund preview before confirming. All 20 markets endpoint at /api/markets provides country data for market-based pricing."
+}
