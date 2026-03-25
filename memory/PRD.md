@@ -139,6 +139,21 @@ Build a scalable, production-ready Hotel Booking & Travel Platform similar to Bo
     - Financial tab (view commission/credit info)
   - **Test Agency**: ABC Turizm (elif@gmail.com), ₺50,000 credit, 10% commission
 
+- ✅ **Premium Registration Pages** (COMPLETED - March 25, 2026)
+  - **Agency Registration** (/agency/register):
+    - Split-screen premium design
+    - Left pane: Hero with Turkish B2B benefits, stats (2,500+ Otel, 500+ Acenta, ₺50M+)
+    - Right pane: 3-step form (Firma → İletişim → Konum)
+    - Trust badges (SSL, TÜRSAB, 24 Saat Onay)
+    - Mobile responsive design
+  - **Hotel Registration** (/extranet/register):
+    - Split-screen premium design
+    - Left pane: Hero with metrics (+50% Doluluk, 100+ Ülke, %0 Kayıt)
+    - Right pane: 4-step form (Temel → Konum → Özellikler → Fotoğraflar)
+    - 20 Turkish cities, 8 property types, 12 amenity options
+    - Photo upload with drag & drop
+    - Multi-language support (TR/EN)
+
 ### Technical Stack
 - Backend: FastAPI + MongoDB
 - Frontend: React + Tailwind CSS + Shadcn UI
@@ -254,6 +269,7 @@ IYZICO_BASE_URL=https://sandbox-api.iyzipay.com (or https://api.iyzipay.com for 
 5. Add map view for search results
 
 ## Test Reports
+- `/app/test_reports/iteration_6.json` - Premium Registration Pages (100% pass rate)
 - `/app/test_reports/iteration_5.json` - B2B Agency Panel (100% pass rate)
 - `/app/test_reports/iteration_4.json` - Extranet Pricing
 - `/app/test_reports/iteration_3.json` - Brand & Core features
