@@ -207,7 +207,7 @@ Build a scalable, production-ready Hotel Booking & Travel Platform similar to Bo
 - [ ] Configure Resend API key for email sending
 - [x] ~~Real payment integration (iyzico for Turkey)~~ **DONE - March 24, 2026**
 - [ ] Configure iyzico API keys (IYZICO_API_KEY, IYZICO_SECRET_KEY)
-- [ ] Password reset flow
+- [x] ~~Password reset flow~~ **DONE - March 25, 2026**
 
 ### P1 - High Priority (Phase 4)
 - [x] ~~B2B Agency Panel with commission management~~ **DONE - March 25, 2026**
@@ -215,18 +215,21 @@ Build a scalable, production-ready Hotel Booking & Travel Platform similar to Bo
 - [x] ~~Currency conversion with exchange rates~~ **DONE - March 25, 2026**
 - [x] ~~Cancellation workflow with refund processing~~ **DONE - March 25, 2026**
 - [x] ~~Search by map location (Leaflet/OpenStreetMap)~~ **DONE - March 25, 2026**
+- [x] ~~Promotion/coupon system~~ **DONE - March 25, 2026**
+- [x] ~~Multiple currency support UI~~ **DONE - March 25, 2026**
 
 ### P2 - Medium Priority
-- [ ] Promotion/coupon system
 - [ ] Saved hotels (wishlist)
-- [ ] Multiple currency support
 - [ ] Property analytics dashboard
+- [ ] Advanced Admin Dashboard (Fraud detection, detailed analytics)
+- [ ] Backend Refactoring (Break down ~4200-line server.py into modular routers)
 
 ### P3 - Future Enhancements
 - [ ] External OTA integrations
 - [ ] Mobile app (React Native)
 - [ ] AI-powered recommendations
 - [ ] Chat support system
+- [ ] Elasticsearch/OpenSearch migration for search
 
 ## Test Credentials
 | Role | Email | Password |
@@ -314,15 +317,78 @@ IYZICO_BASE_URL=https://sandbox-api.iyzipay.com (or https://api.iyzipay.com for 
 ## Next Tasks
 1. Configure iyzico API keys for production
 2. Get Resend API key and enable email notifications
-3. Backend schema update for 20-market pricing (frontend UI exists)
-4. Implement password reset flow
-5. Add map view for search results
+3. Implement saved hotels/wishlist feature
+4. Backend refactoring (modular architecture)
+
+## Coupon/Promotion System (NEW - March 25, 2026)
+
+### API Endpoints
+- `POST /api/coupons` - Create coupon (Admin/Hotel Owner)
+- `GET /api/coupons` - List coupons (Admin/Hotel Owner)
+- `GET /api/coupons/{id}` - Get coupon details
+- `PUT /api/coupons/{id}` - Update coupon
+- `DELETE /api/coupons/{id}` - Disable coupon
+- `POST /api/coupons/validate` - Validate coupon code (no auth required)
+- `POST /api/coupons/{id}/apply` - Record coupon usage
+
+### Features
+- Percentage or fixed amount discounts
+- Minimum order amount requirement
+- Maximum discount cap for percentage coupons
+- Usage limits (total and per-user)
+- Date validity (valid_from, valid_until)
+- First booking only option
+- Hotel-specific coupons
+- City-specific coupons
+
+### Test Coupons
+- **METRO2026**: 15% discount, max ₺500, min order ₺500, valid 2026
+- **YILBASI20**: 20% discount, max ₺300, min order ₺500, valid 2025 (expired)
+
+---
+
+## Password Reset Flow (NEW - March 25, 2026)
+
+### API Endpoints
+- `POST /api/auth/forgot-password` - Initiate password reset
+- `GET /api/auth/verify-reset-token` - Verify reset token validity
+- `POST /api/auth/reset-password` - Reset password with token
+
+### Features
+- Token expires in 1 hour
+- Security: Same response for existing/non-existing emails
+- Minimum 6 character password requirement
+- Email templates with Metro Travel branding
+- Note: Email sending requires RESEND_API_KEY configuration
+
+---
+
+## Multi-Currency Support (NEW - March 25, 2026)
+
+### Supported Currencies
+| Code | Symbol | Name |
+|------|--------|------|
+| TRY | ₺ | Turkish Lira |
+| EUR | € | Euro |
+| USD | $ | US Dollar |
+| GBP | £ | British Pound |
+| RUB | ₽ | Russian Ruble |
+| SAR | ﷼ | Saudi Riyal |
+
+### Features
+- Currency selector in header (HomePage)
+- Persists selection in localStorage
+- Real-time price conversion
+- Exchange rates from backend API
+
+---
 
 ## Test Reports
+- `/app/test_reports/iteration_10.json` - Coupon, Password Reset & Currency (100% pass rate)
 - `/app/test_reports/iteration_9.json` - Map View & Cancellation System (100% pass rate)
 - `/app/test_reports/iteration_8.json` - Market Pricing & Currency Support (100% pass rate)
 - `/app/test_reports/iteration_7.json` - Registration Backend/Frontend Sync (100% pass rate)
 - `/app/test_reports/iteration_6.json` - Premium Registration Pages (100% pass rate)
 - `/app/test_reports/iteration_5.json` - B2B Agency Panel (100% pass rate)
-- Backend: 79+ tests passed
+- Backend: 99+ tests passed
 - Frontend: All panels fully functional
