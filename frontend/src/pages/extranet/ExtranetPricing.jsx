@@ -228,6 +228,30 @@ const priceTypeConfig = [
   { key: "dynamic_package", icon: Package, color: "text-orange-600", bgColor: "bg-orange-50" },
 ];
 
+// 20 Main Markets (Countries)
+const marketCountries = [
+  { code: "TR", flag: "🇹🇷", name: { en: "Turkey (Domestic)", tr: "Türkiye (Yurtiçi)", de: "Türkei (Inland)" } },
+  { code: "DE", flag: "🇩🇪", name: { en: "Germany", tr: "Almanya", de: "Deutschland" } },
+  { code: "GB", flag: "🇬🇧", name: { en: "United Kingdom", tr: "İngiltere", de: "Großbritannien" } },
+  { code: "FR", flag: "🇫🇷", name: { en: "France", tr: "Fransa", de: "Frankreich" } },
+  { code: "NL", flag: "🇳🇱", name: { en: "Netherlands", tr: "Hollanda", de: "Niederlande" } },
+  { code: "BE", flag: "🇧🇪", name: { en: "Belgium", tr: "Belçika", de: "Belgien" } },
+  { code: "RU", flag: "🇷🇺", name: { en: "Russia", tr: "Rusya", de: "Russland" } },
+  { code: "UA", flag: "🇺🇦", name: { en: "Ukraine", tr: "Ukrayna", de: "Ukraine" } },
+  { code: "PL", flag: "🇵🇱", name: { en: "Poland", tr: "Polonya", de: "Polen" } },
+  { code: "US", flag: "🇺🇸", name: { en: "United States", tr: "Amerika", de: "USA" } },
+  { code: "CA", flag: "🇨🇦", name: { en: "Canada", tr: "Kanada", de: "Kanada" } },
+  { code: "AU", flag: "🇦🇺", name: { en: "Australia", tr: "Avustralya", de: "Australien" } },
+  { code: "IT", flag: "🇮🇹", name: { en: "Italy", tr: "İtalya", de: "Italien" } },
+  { code: "ES", flag: "🇪🇸", name: { en: "Spain", tr: "İspanya", de: "Spanien" } },
+  { code: "AT", flag: "🇦🇹", name: { en: "Austria", tr: "Avusturya", de: "Österreich" } },
+  { code: "CH", flag: "🇨🇭", name: { en: "Switzerland", tr: "İsviçre", de: "Schweiz" } },
+  { code: "SE", flag: "🇸🇪", name: { en: "Sweden", tr: "İsveç", de: "Schweden" } },
+  { code: "NO", flag: "🇳🇴", name: { en: "Norway", tr: "Norveç", de: "Norwegen" } },
+  { code: "DK", flag: "🇩🇰", name: { en: "Denmark", tr: "Danimarka", de: "Dänemark" } },
+  { code: "SA", flag: "🇸🇦", name: { en: "Saudi Arabia", tr: "Suudi Arabistan", de: "Saudi-Arabien" } },
+];
+
 const mealPlans = [
   { value: "room_only", labelKey: "roomOnly" },
   { value: "breakfast", labelKey: "breakfast" },
@@ -248,16 +272,24 @@ export default function ExtranetPricing() {
   const t = (key) => translations[language]?.[key] || translations.en[key] || key;
   const getRoomTypeLabel = (type) => roomTypeLabels[language]?.[type] || roomTypeLabels.en[type] || type;
   const getDateLocale = () => language === "tr" ? tr : language === "de" ? de : enUS;
+  const getMarketName = (market) => market.name[language] || market.name.en;
   
   const [rooms, setRooms] = useState([]);
   const [ratePlans, setRatePlans] = useState([]);
   const [selectedRoom, setSelectedRoom] = useState(null);
   const [selectedRatePlan, setSelectedRatePlan] = useState(null);
   const [selectedPriceType, setSelectedPriceType] = useState("market");
+  const [selectedMarket, setSelectedMarket] = useState(marketCountries[0]); // Default to Turkey
   const [inventory, setInventory] = useState([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [currentMonth, setCurrentMonth] = useState(new Date());
+  
+  // Market prices for all countries
+  const [marketPrices, setMarketPrices] = useState({});
+  
+  // Market selection dialog
+  const [marketDialogOpen, setMarketDialogOpen] = useState(false);
   
   // Edited cells tracking
   const [editedCells, setEditedCells] = useState({});
@@ -289,6 +321,7 @@ export default function ExtranetPricing() {
     apply_to: "all", // all, weekdays, weekends
     min_stay: "1",
     stop_sale: false,
+    selected_markets: ["TR"], // Default market
   });
   
   useEffect(() => {
@@ -550,12 +583,20 @@ export default function ExtranetPricing() {
     return inventory.find(inv => inv.date === dateStr);
   };
   
-  const getPriceForType = (inv, priceType) => {
+  const getPriceForType = (inv, priceType, marketCode = null) => {
     if (!inv) return null;
+    
+    // If market price type and market code provided, get market-specific price
+    if (priceType === "market" && marketCode) {
+      const marketPrice = inv.market_prices?.[marketCode];
+      if (marketPrice) return marketPrice;
+    }
+    
     switch (priceType) {
       case "local_tr": return inv.price_local || inv.price;
       case "corporate": return inv.price_corporate || inv.price;
       case "dynamic_package": return inv.price_package || inv.price;
+      case "market": return inv.market_prices?.[selectedMarket.code] || inv.price;
       default: return inv.price;
     }
   };
@@ -582,9 +623,19 @@ export default function ExtranetPricing() {
               </Link>
               <div>
                 <h1 className="font-outfit font-bold text-xl">{t("pricingAvailability")}</h1>
-                {selectedRoom && (
-                  <p className="text-white/70 text-sm">{selectedRoom.name?.tr || selectedRoom.name?.en}</p>
-                )}
+                <div className="flex items-center gap-2 text-white/70 text-sm">
+                  {selectedRoom && (
+                    <span>{selectedRoom.name?.tr || selectedRoom.name?.en}</span>
+                  )}
+                  {selectedPriceType === "market" && selectedRoom && (
+                    <>
+                      <span>•</span>
+                      <span className="flex items-center gap-1">
+                        {selectedMarket.flag} {getMarketName(selectedMarket)}
+                      </span>
+                    </>
+                  )}
+                </div>
               </div>
             </div>
             
@@ -737,18 +788,57 @@ export default function ExtranetPricing() {
                               ? `border-current ${pt.bgColor} ${pt.color}`
                               : "border-slate-200 hover:border-slate-300"
                           }`}
-                          onClick={() => setSelectedPriceType(pt.key)}
+                          onClick={() => {
+                            setSelectedPriceType(pt.key);
+                            if (pt.key === "market") {
+                              setMarketDialogOpen(true);
+                            }
+                          }}
                         >
                           <Icon className={`w-4 h-4 ${selectedPriceType === pt.key ? pt.color : "text-slate-400"}`} />
-                          <span className="text-sm font-medium">
-                            {t(pt.key === "market" ? "marketPrice" : 
-                               pt.key === "local_tr" ? "localPrice" : 
-                               pt.key === "corporate" ? "corporatePrice" : "dynamicPackage")}
+                          <span className="text-sm font-medium flex-1 text-left">
+                            {pt.key === "market" ? (
+                              <>
+                                {language === "tr" ? "Pazar Fiyatları" : "Market Prices"}
+                                <span className="text-xs block text-muted-foreground">
+                                  {selectedMarket.flag} {getMarketName(selectedMarket)}
+                                </span>
+                              </>
+                            ) : (
+                              t(pt.key === "local_tr" ? "localPrice" : 
+                                pt.key === "corporate" ? "corporatePrice" : "dynamicPackage")
+                            )}
                           </span>
+                          {pt.key === "market" && (
+                            <ChevronRight className="w-4 h-4 text-slate-400" />
+                          )}
                         </button>
                       );
                     })}
                   </div>
+                </div>
+              )}
+              
+              {/* Selected Market Display */}
+              {selectedRatePlan && selectedPriceType === "market" && (
+                <div className="card-dashboard p-4">
+                  <Label className="mb-3 block font-medium">
+                    {language === "tr" ? "Seçili Pazar" : "Selected Market"}
+                  </Label>
+                  <button
+                    className="w-full flex items-center gap-3 p-3 rounded-lg border border-metro-navy bg-metro-navy/5 hover:bg-metro-navy/10 transition-all"
+                    onClick={() => setMarketDialogOpen(true)}
+                    data-testid="change-market-btn"
+                  >
+                    <span className="text-2xl">{selectedMarket.flag}</span>
+                    <div className="flex-1 text-left">
+                      <div className="font-medium">{getMarketName(selectedMarket)}</div>
+                      <div className="text-xs text-muted-foreground">
+                        {language === "tr" ? "Değiştirmek için tıklayın" : "Click to change"}
+                      </div>
+                    </div>
+                    <ChevronRight className="w-5 h-5 text-metro-navy" />
+                  </button>
                 </div>
               )}
               
@@ -1174,6 +1264,61 @@ export default function ExtranetPricing() {
                 </Button>
               </div>
             </form>
+          </DialogContent>
+        </Dialog>
+        
+        {/* Market Selection Dialog */}
+        <Dialog open={marketDialogOpen} onOpenChange={setMarketDialogOpen}>
+          <DialogContent className="max-w-2xl max-h-[80vh] overflow-y-auto">
+            <DialogHeader>
+              <DialogTitle className="flex items-center gap-2">
+                <Globe className="w-5 h-5 text-metro-navy" />
+                {language === "tr" ? "Pazar Seçin" : "Select Market"}
+              </DialogTitle>
+            </DialogHeader>
+            
+            <div className="py-2">
+              <p className="text-sm text-muted-foreground mb-4">
+                {language === "tr" 
+                  ? "Fiyat girmek istediğiniz pazarı (ülkeyi) seçin. Her pazar için farklı fiyat belirleyebilirsiniz."
+                  : "Select the market (country) you want to set prices for. You can set different prices for each market."
+                }
+              </p>
+              
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
+                {marketCountries.map(market => (
+                  <button
+                    key={market.code}
+                    className={`flex items-center gap-2 p-3 rounded-lg border transition-all text-left ${
+                      selectedMarket.code === market.code
+                        ? "border-metro-navy bg-metro-navy/5 ring-2 ring-metro-navy/20"
+                        : "border-slate-200 hover:border-slate-300 hover:bg-slate-50"
+                    }`}
+                    onClick={() => {
+                      setSelectedMarket(market);
+                      setMarketDialogOpen(false);
+                      setEditedCells({});
+                    }}
+                    data-testid={`market-${market.code}`}
+                  >
+                    <span className="text-xl">{market.flag}</span>
+                    <div className="flex-1 min-w-0">
+                      <div className="font-medium text-sm truncate">{getMarketName(market)}</div>
+                      <div className="text-xs text-muted-foreground">{market.code}</div>
+                    </div>
+                    {selectedMarket.code === market.code && (
+                      <Check className="w-4 h-4 text-metro-navy flex-shrink-0" />
+                    )}
+                  </button>
+                ))}
+              </div>
+            </div>
+            
+            <div className="flex justify-end pt-4 border-t">
+              <Button variant="outline" onClick={() => setMarketDialogOpen(false)}>
+                {t("cancel")}
+              </Button>
+            </div>
           </DialogContent>
         </Dialog>
       </div>

@@ -90,6 +90,23 @@ Build a scalable, production-ready Hotel Booking & Travel Platform similar to Bo
   - Early check-in / Late check-out options
   - Additional info: Total rooms, Year built, Last renovation
   - Location with coordinates (latitude/longitude)
+- ✅ **Enhanced Room Management**: 16 Room Types
+  - Standard, Superior, Deluxe, Premium
+  - Junior Suite, Suite, Executive Suite, Presidential Suite
+  - Family Room, Connecting Rooms, Duplex
+  - Studio, Apartment, Villa, Bungalow, Penthouse
+  - 25+ Room Amenities (Wi-Fi, Klima, Deniz Manzarası, Jakuzi, etc.)
+  - Connecting room support
+- ✅ **Advanced Pricing System with 20 Markets**
+  - Monthly calendar view for pricing
+  - **20 Market/Country Pricing:**
+    🇹🇷 Turkey, 🇩🇪 Germany, 🇬🇧 UK, 🇫🇷 France, 🇳🇱 Netherlands
+    🇧🇪 Belgium, 🇷🇺 Russia, 🇺🇦 Ukraine, 🇵🇱 Poland, 🇺🇸 USA
+    🇨🇦 Canada, 🇦🇺 Australia, 🇮🇹 Italy, 🇪🇸 Spain, 🇦🇹 Austria
+    🇨🇭 Switzerland, 🇸🇪 Sweden, 🇳🇴 Norway, 🇩🇰 Denmark, 🇸🇦 Saudi Arabia
+  - Local TR, Corporate, Dynamic Package pricing
+  - Bulk update with weekday/weekend filters
+  - Stop sale, min stay options
 
 ### Technical Stack
 - Backend: FastAPI + MongoDB
