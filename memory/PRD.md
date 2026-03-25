@@ -107,6 +107,37 @@ Build a scalable, production-ready Hotel Booking & Travel Platform similar to Bo
   - Local TR, Corporate, Dynamic Package pricing
   - Bulk update with weekday/weekend filters
   - Stop sale, min stay options
+- ✅ **B2B Agency Panel** (COMPLETED - March 25, 2026)
+  - **Agency Registration**: Travel agencies can apply to join B2B platform
+  - **Admin Agency Management** (/admin/agencies):
+    - List all agencies with status filtering
+    - Approve/reject agency applications
+    - Credit limit management (add/deduct credit)
+    - Commission rate and markup settings
+  - **Agency Dashboard** (/agency):
+    - Welcome message with agency status
+    - Credit stats (limit, available, used)
+    - Booking stats (total, confirmed, revenue)
+    - Commission info display
+    - Quick action cards
+    - Recent bookings list
+  - **Agency User Management** (/agency/users):
+    - Add sub-users with roles (Admin, Agent, Finance)
+    - Edit user details and role
+    - Deactivate/activate users
+  - **Agency Bookings** (/agency/bookings):
+    - View all agency bookings
+    - Search by reference, hotel, guest
+    - Filter by status (confirmed, pending, cancelled)
+    - Commission tracking per booking
+  - **Agency Transactions** (/agency/transactions):
+    - Credit balance cards
+    - Full transaction history
+    - Credit/debit tracking with descriptions
+  - **Agency Settings** (/agency/settings):
+    - Company info management
+    - Financial tab (view commission/credit info)
+  - **Test Agency**: ABC Turizm (elif@gmail.com), ₺50,000 credit, 10% commission
 
 ### Technical Stack
 - Backend: FastAPI + MongoDB
@@ -127,8 +158,8 @@ Build a scalable, production-ready Hotel Booking & Travel Platform similar to Bo
 - [ ] Password reset flow
 
 ### P1 - High Priority (Phase 4)
-- [ ] B2B Agency Panel with commission management
-- [ ] Advanced pricing rules (seasonal, weekday/weekend)
+- [x] ~~B2B Agency Panel with commission management~~ **DONE - March 25, 2026**
+- [ ] Backend support for Market-based pricing (20 markets UI exists, backend schema update needed)
 - [ ] Cancellation workflow with refund processing
 - [ ] Search by map location
 
@@ -150,8 +181,44 @@ Build a scalable, production-ready Hotel Booking & Travel Platform similar to Bo
 | Admin | admin@metrotravel.com | admin123456 |
 | Hotel Owner 1 | ahmet@grandsultanhotel.com | hotel123456 |
 | Hotel Owner 2 | mehmet@bodrumresort.com | hotel123456 |
-| Customer 1 | elif@gmail.com | customer123 |
-| Customer 2 | can@outlook.com | customer123 |
+| Customer 1 | can@outlook.com | customer123 |
+| Agency Owner | elif@gmail.com | customer123 |
+
+---
+
+## B2B Agency Panel
+
+### Features
+- Agency registration and approval workflow
+- Credit system (admin-managed credit limits)
+- Commission and markup rates
+- Sub-user management with roles (Admin, Agent, Finance)
+- Agency-specific bookings and transactions
+
+### Agency API Endpoints
+- `POST /api/agencies` - Register new agency
+- `GET /api/agencies` - List agencies (admin only)
+- `GET /api/agencies/{id}` - Get agency details
+- `PUT /api/agencies/{id}` - Update agency
+- `PUT /api/admin/agencies/{id}/approve` - Approve agency
+- `PUT /api/admin/agencies/{id}/credit` - Manage credit
+- `PUT /api/admin/agencies/{id}/commission` - Set commission
+- `POST /api/agencies/{id}/users` - Add sub-user
+- `GET /api/agencies/{id}/users` - List sub-users
+- `PUT /api/agencies/{id}/users/{user_id}` - Update sub-user
+- `DELETE /api/agencies/{id}/users/{user_id}` - Deactivate sub-user
+- `GET /api/agencies/{id}/bookings` - List agency bookings
+- `POST /api/agencies/{id}/bookings` - Create booking
+- `GET /api/agencies/{id}/transactions` - Credit transactions
+- `GET /api/agencies/{id}/dashboard` - Dashboard data
+
+### Test Agency
+- **Name**: ABC Turizm
+- **Owner**: Elif Demir (elif@gmail.com)
+- **Status**: Approved
+- **Credit**: ₺50,000
+- **Commission**: 10%
+- **Markup**: 5%
 
 ---
 
@@ -182,11 +249,13 @@ IYZICO_BASE_URL=https://sandbox-api.iyzipay.com (or https://api.iyzipay.com for 
 ## Next Tasks
 1. Configure iyzico API keys for production
 2. Get Resend API key and enable email notifications
-3. Build B2B agency panel with commission management
+3. Backend schema update for 20-market pricing (frontend UI exists)
 4. Implement password reset flow
 5. Add map view for search results
 
 ## Test Reports
-- `/app/test_reports/iteration_3.json` - Latest test (100% pass rate)
-- Backend: 22/22 tests passed
-- Frontend: All branding and functionality tests passed
+- `/app/test_reports/iteration_5.json` - B2B Agency Panel (100% pass rate)
+- `/app/test_reports/iteration_4.json` - Extranet Pricing
+- `/app/test_reports/iteration_3.json` - Brand & Core features
+- Backend: 23/23 Agency tests passed
+- Frontend: All panels fully functional
