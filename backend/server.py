@@ -545,6 +545,7 @@ class BookingCreate(BaseModel):
     adults: int
     children: int = 0
     children_ages: List[int] = []
+    coupon_code: Optional[str] = None  # Optional coupon code
 
 class Booking(BaseModel):
     model_config = ConfigDict(extra="ignore")
@@ -561,6 +562,10 @@ class Booking(BaseModel):
     children: int
     children_ages: List[int] = []
     total_price: float
+    original_price: Optional[float] = None  # Price before discount
+    discount_amount: Optional[float] = None  # Coupon discount
+    coupon_id: Optional[str] = None  # Applied coupon
+    coupon_code: Optional[str] = None
     currency: Currency
     status: BookingStatus
     payment_status: PaymentStatus
@@ -731,6 +736,105 @@ class AgencyBookingRequest(BaseModel):
     use_credit: bool = True  # Whether to use credit limit
     markup_amount: Optional[float] = None  # Custom markup for this booking
 
+# ================== COUPON / PROMOTION MODELS ==================
+
+class CouponType(str, Enum):
+    PERCENTAGE = "percentage"
+    FIXED_AMOUNT = "fixed_amount"
+
+class CouponStatus(str, Enum):
+    ACTIVE = "active"
+    EXPIRED = "expired"
+    DISABLED = "disabled"
+
+class CouponCreate(BaseModel):
+    """Create a new coupon"""
+    code: str = Field(..., min_length=3, max_length=20)
+    description: Optional[TranslatableText] = None
+    coupon_type: CouponType = CouponType.PERCENTAGE
+    value: float = Field(..., gt=0)  # Percentage or fixed amount
+    currency: Currency = Currency.TRY  # For fixed amount coupons
+    min_order_amount: float = 0  # Minimum booking amount
+    max_discount: Optional[float] = None  # Max discount for percentage coupons
+    usage_limit: Optional[int] = None  # Total usage limit
+    per_user_limit: int = 1  # Usage limit per user
+    valid_from: str  # YYYY-MM-DD
+    valid_until: str  # YYYY-MM-DD
+    applicable_hotels: Optional[List[str]] = None  # Hotel IDs, None = all
+    applicable_cities: Optional[List[str]] = None  # City names, None = all
+    first_booking_only: bool = False  # Only for first-time customers
+
+class Coupon(BaseModel):
+    model_config = ConfigDict(extra="ignore")
+    coupon_id: str
+    code: str
+    description: Optional[TranslatableText] = None
+    coupon_type: CouponType
+    value: float
+    currency: Currency = Currency.TRY
+    min_order_amount: float = 0
+    max_discount: Optional[float] = None
+    usage_limit: Optional[int] = None
+    usage_count: int = 0
+    per_user_limit: int = 1
+    valid_from: str
+    valid_until: str
+    applicable_hotels: Optional[List[str]] = None
+    applicable_cities: Optional[List[str]] = None
+    first_booking_only: bool = False
+    status: CouponStatus = CouponStatus.ACTIVE
+    created_by: str
+    created_at: datetime
+
+class CouponUpdate(BaseModel):
+    """Update coupon fields"""
+    description: Optional[TranslatableText] = None
+    value: Optional[float] = None
+    min_order_amount: Optional[float] = None
+    max_discount: Optional[float] = None
+    usage_limit: Optional[int] = None
+    per_user_limit: Optional[int] = None
+    valid_until: Optional[str] = None
+    status: Optional[CouponStatus] = None
+
+class CouponValidateRequest(BaseModel):
+    """Request to validate a coupon"""
+    code: str
+    hotel_id: str
+    total_amount: float
+    currency: Currency = Currency.TRY
+
+class CouponValidateResponse(BaseModel):
+    """Response from coupon validation"""
+    valid: bool
+    message: str
+    coupon_id: Optional[str] = None
+    discount_amount: Optional[float] = None
+    final_amount: Optional[float] = None
+    coupon_type: Optional[CouponType] = None
+    value: Optional[float] = None
+
+# ================== PASSWORD RESET MODELS ==================
+
+class ForgotPasswordRequest(BaseModel):
+    """Request to initiate password reset"""
+    email: EmailStr
+
+class ResetPasswordRequest(BaseModel):
+    """Request to reset password with token"""
+    token: str
+    new_password: str = Field(..., min_length=6)
+
+class PasswordResetToken(BaseModel):
+    """Password reset token stored in DB"""
+    token_id: str
+    user_id: str
+    email: str
+    token: str
+    expires_at: datetime
+    used: bool = False
+    created_at: datetime
+
 # ================== IYZICO PAYMENT MODELS ==================
 
 class PaymentInitRequest(BaseModel):
@@ -883,6 +987,55 @@ def get_cancellation_email(booking: dict, hotel_name: str, refund_amount: float 
                 {refund_section}
                 
                 <p>Sorularınız için destek ekibimizle iletişime geçebilirsiniz.</p>
+            </div>
+            <div class="footer">
+                <p>© 2024 Metro Travel. Tüm hakları saklıdır.</p>
+            </div>
+        </div>
+    </body>
+    </html>
+    """
+
+def get_password_reset_email(email: str, reset_token: str, reset_url: str) -> str:
+    """Generate password reset email HTML."""
+    return f"""
+    <!DOCTYPE html>
+    <html>
+    <head>
+        <meta charset="utf-8">
+        <style>
+            body {{ font-family: Arial, sans-serif; line-height: 1.6; color: #333; }}
+            .container {{ max-width: 600px; margin: 0 auto; padding: 20px; }}
+            .header {{ background: #0d1a30; color: white; padding: 20px; text-align: center; border-radius: 8px 8px 0 0; }}
+            .content {{ padding: 30px; background: #f9f9f9; }}
+            .button {{ display: inline-block; padding: 14px 28px; background: #f97316; color: white; text-decoration: none; border-radius: 8px; font-weight: bold; }}
+            .footer {{ text-align: center; padding: 20px; color: #666; font-size: 12px; }}
+            .token-box {{ background: #e5e7eb; padding: 15px; border-radius: 8px; font-family: monospace; font-size: 14px; word-break: break-all; margin: 15px 0; }}
+        </style>
+    </head>
+    <body>
+        <div class="container">
+            <div class="header">
+                <h1 style="margin: 0;">Metro Travel</h1>
+                <p style="margin: 10px 0 0 0; opacity: 0.9;">Şifre Sıfırlama</p>
+            </div>
+            <div class="content">
+                <p>Merhaba,</p>
+                <p><strong>{email}</strong> hesabı için şifre sıfırlama talebinde bulunuldu.</p>
+                
+                <p>Şifrenizi sıfırlamak için aşağıdaki butona tıklayın:</p>
+                
+                <p style="text-align: center; margin: 30px 0;">
+                    <a href="{reset_url}" class="button">Şifremi Sıfırla</a>
+                </p>
+                
+                <p>Veya aşağıdaki kodu kullanın:</p>
+                <div class="token-box">{reset_token}</div>
+                
+                <p style="color: #666; font-size: 14px;">
+                    Bu link 1 saat içinde geçerliliğini yitirecektir.<br>
+                    Eğer bu talebi siz yapmadıysanız, bu e-postayı görmezden gelebilirsiniz.
+                </p>
             </div>
             <div class="footer">
                 <p>© 2024 Metro Travel. Tüm hakları saklıdır.</p>
@@ -1177,6 +1330,120 @@ async def logout(request: Request, response: Response):
     
     response.delete_cookie(key="session_token", path="/")
     return {"message": "Logged out successfully"}
+
+@api_router.post("/auth/forgot-password")
+async def forgot_password(request_data: ForgotPasswordRequest):
+    """Initiate password reset - sends email with reset token"""
+    email = request_data.email.lower()
+    
+    # Check if user exists
+    user = await db.users.find_one({"email": email}, {"_id": 0})
+    if not user:
+        # Don't reveal if email exists for security
+        return {"message": "Şifre sıfırlama linki e-posta adresinize gönderildi (eğer kayıtlıysa)."}
+    
+    # Check if user is OAuth-only (no password)
+    if not user.get("password_hash"):
+        return {"message": "Bu hesap Google ile oluşturulmuş. Lütfen Google ile giriş yapın."}
+    
+    # Generate reset token
+    import secrets
+    reset_token = secrets.token_urlsafe(32)
+    token_id = f"reset_{uuid.uuid4().hex[:12]}"
+    now = datetime.now(timezone.utc)
+    expires_at = now + timedelta(hours=1)
+    
+    # Delete any existing tokens for this user
+    await db.password_resets.delete_many({"email": email})
+    
+    # Store token
+    token_doc = {
+        "token_id": token_id,
+        "user_id": user["user_id"],
+        "email": email,
+        "token": reset_token,
+        "expires_at": expires_at.isoformat(),
+        "used": False,
+        "created_at": now.isoformat()
+    }
+    await db.password_resets.insert_one(token_doc)
+    
+    # Build reset URL (frontend will handle this route)
+    frontend_url = os.environ.get("FRONTEND_URL", "https://metrotravel.preview.emergentagent.com")
+    reset_url = f"{frontend_url}/reset-password?token={reset_token}"
+    
+    # Send email
+    email_html = get_password_reset_email(email, reset_token, reset_url)
+    email_sent = await send_email(
+        email,
+        "Metro Travel - Şifre Sıfırlama",
+        email_html
+    )
+    
+    if email_sent:
+        logger.info(f"Password reset email sent to {email}")
+    else:
+        logger.warning(f"Failed to send password reset email to {email} - RESEND_API_KEY may not be configured")
+    
+    return {"message": "Şifre sıfırlama linki e-posta adresinize gönderildi (eğer kayıtlıysa).", "email_sent": email_sent}
+
+@api_router.post("/auth/reset-password")
+async def reset_password(request_data: ResetPasswordRequest):
+    """Reset password using token"""
+    token = request_data.token
+    new_password = request_data.new_password
+    
+    if len(new_password) < 6:
+        raise HTTPException(status_code=400, detail="Şifre en az 6 karakter olmalıdır.")
+    
+    # Find token
+    reset_doc = await db.password_resets.find_one({"token": token, "used": False})
+    if not reset_doc:
+        raise HTTPException(status_code=400, detail="Geçersiz veya kullanılmış şifre sıfırlama linki.")
+    
+    # Check expiry
+    expires_at = datetime.fromisoformat(reset_doc["expires_at"])
+    if expires_at.tzinfo is None:
+        expires_at = expires_at.replace(tzinfo=timezone.utc)
+    
+    if datetime.now(timezone.utc) > expires_at:
+        raise HTTPException(status_code=400, detail="Şifre sıfırlama linki süresi dolmuş. Lütfen yeni bir talep oluşturun.")
+    
+    # Hash new password
+    password_hash = hash_password(new_password)
+    
+    # Update user password
+    await db.users.update_one(
+        {"user_id": reset_doc["user_id"]},
+        {"$set": {"password_hash": password_hash, "updated_at": datetime.now(timezone.utc).isoformat()}}
+    )
+    
+    # Mark token as used
+    await db.password_resets.update_one(
+        {"token": token},
+        {"$set": {"used": True, "used_at": datetime.now(timezone.utc).isoformat()}}
+    )
+    
+    logger.info(f"Password reset successful for user {reset_doc['user_id']}")
+    
+    return {"message": "Şifreniz başarıyla güncellendi. Şimdi giriş yapabilirsiniz."}
+
+@api_router.get("/auth/verify-reset-token")
+async def verify_reset_token(token: str):
+    """Verify if a reset token is valid"""
+    reset_doc = await db.password_resets.find_one({"token": token, "used": False})
+    if not reset_doc:
+        return {"valid": False, "message": "Geçersiz veya kullanılmış link."}
+    
+    # Check expiry
+    expires_at = datetime.fromisoformat(reset_doc["expires_at"])
+    if expires_at.tzinfo is None:
+        expires_at = expires_at.replace(tzinfo=timezone.utc)
+    
+    if datetime.now(timezone.utc) > expires_at:
+        return {"valid": False, "message": "Link süresi dolmuş."}
+    
+    return {"valid": True, "email": reset_doc["email"]}
 
 @api_router.put("/auth/profile")
 async def update_profile(update_data: UserUpdate, user: User = Depends(get_current_user)):
@@ -2047,6 +2314,37 @@ async def create_booking(booking_data: BookingCreate, request: Request):
                 {"$inc": {"available_units": -booking_room.quantity, "sold_units": booking_room.quantity}}
             )
     
+    # Process coupon if provided
+    original_price = total_price
+    discount_amount = 0
+    coupon_id = None
+    coupon_code = None
+    
+    if booking_data.coupon_code:
+        coupon_code = booking_data.coupon_code.upper()
+        
+        coupon = await db.coupons.find_one({"code": coupon_code}, {"_id": 0})
+        if coupon and coupon["status"] == CouponStatus.ACTIVE.value:
+            now_str = datetime.now(timezone.utc).strftime("%Y-%m-%d")
+            if now_str >= coupon["valid_from"] and now_str <= coupon["valid_until"]:
+                coupon_type = coupon["coupon_type"]
+                value = coupon["value"]
+                
+                if coupon_type == CouponType.PERCENTAGE.value:
+                    discount_amount = total_price * (value / 100)
+                    if coupon.get("max_discount"):
+                        discount_amount = min(discount_amount, coupon["max_discount"])
+                else:  # FIXED_AMOUNT
+                    coupon_currency = coupon.get("currency", "TRY")
+                    if coupon_currency != currency.value:
+                        discount_amount = convert_currency(value, coupon_currency, currency.value)
+                    else:
+                        discount_amount = value
+                    discount_amount = min(discount_amount, total_price)
+                
+                total_price = total_price - discount_amount
+                coupon_id = coupon["coupon_id"]
+    
     booking_id = f"booking_{uuid.uuid4().hex[:12]}"
     booking_ref = generate_booking_ref()
     now = datetime.now(timezone.utc)
@@ -2074,6 +2372,10 @@ async def create_booking(booking_data: BookingCreate, request: Request):
         "adults": booking_data.adults,
         "children": booking_data.children,
         "children_ages": booking_data.children_ages,
+        "original_price": original_price,
+        "discount_amount": discount_amount,
+        "coupon_id": coupon_id,
+        "coupon_code": coupon_code,
         "total_price": total_price,
         "currency": currency.value,
         "status": initial_status,
@@ -2086,6 +2388,19 @@ async def create_booking(booking_data: BookingCreate, request: Request):
     await db.bookings.insert_one(booking_doc)
     if "_id" in booking_doc:
         del booking_doc["_id"]
+    
+    # Record coupon usage if applied
+    if coupon_id and user:
+        usage_doc = {
+            "usage_id": f"usage_{uuid.uuid4().hex[:12]}",
+            "coupon_id": coupon_id,
+            "user_id": user.user_id,
+            "booking_id": booking_id,
+            "used_at": now.isoformat()
+        }
+        await db.coupon_usages.insert_one(usage_doc)
+        # Increment usage count
+        await db.coupons.update_one({"coupon_id": coupon_id}, {"$inc": {"usage_count": 1}})
     
     # Send confirmation email only if payment is completed (mock mode)
     if not IYZICO_ENABLED:
@@ -2392,6 +2707,252 @@ async def confirm_booking(booking_id: str, user: User = Depends(get_current_user
     )
     
     return {"message": "Booking confirmed"}
+
+# ================== COUPON ROUTES ==================
+
+@api_router.post("/coupons")
+async def create_coupon(coupon_data: CouponCreate, user: User = Depends(get_current_user)):
+    """Admin/Hotel Owner: Create a new coupon"""
+    await require_role(user, [UserRole.ADMIN, UserRole.HOTEL_OWNER])
+    
+    # Check if code already exists
+    existing = await db.coupons.find_one({"code": coupon_data.code.upper()})
+    if existing:
+        raise HTTPException(status_code=400, detail="Bu kupon kodu zaten kullanımda.")
+    
+    coupon_id = f"coupon_{uuid.uuid4().hex[:12]}"
+    now = datetime.now(timezone.utc)
+    
+    coupon_doc = {
+        "coupon_id": coupon_id,
+        "code": coupon_data.code.upper(),
+        "description": coupon_data.description.model_dump() if coupon_data.description else None,
+        "coupon_type": coupon_data.coupon_type.value,
+        "value": coupon_data.value,
+        "currency": coupon_data.currency.value,
+        "min_order_amount": coupon_data.min_order_amount,
+        "max_discount": coupon_data.max_discount,
+        "usage_limit": coupon_data.usage_limit,
+        "usage_count": 0,
+        "per_user_limit": coupon_data.per_user_limit,
+        "valid_from": coupon_data.valid_from,
+        "valid_until": coupon_data.valid_until,
+        "applicable_hotels": coupon_data.applicable_hotels,
+        "applicable_cities": coupon_data.applicable_cities,
+        "first_booking_only": coupon_data.first_booking_only,
+        "status": CouponStatus.ACTIVE.value,
+        "created_by": user.user_id,
+        "created_at": now.isoformat()
+    }
+    
+    await db.coupons.insert_one(coupon_doc)
+    
+    # Remove _id from response
+    coupon_doc.pop("_id", None)
+    return coupon_doc
+
+@api_router.get("/coupons")
+async def list_coupons(
+    status: Optional[CouponStatus] = None,
+    page: int = 1,
+    limit: int = 20,
+    user: User = Depends(get_current_user)
+):
+    """Admin/Hotel Owner: List all coupons"""
+    await require_role(user, [UserRole.ADMIN, UserRole.HOTEL_OWNER])
+    
+    query = {}
+    if status:
+        query["status"] = status.value
+    
+    # Hotel owners only see their own coupons
+    if user.role == UserRole.HOTEL_OWNER:
+        query["created_by"] = user.user_id
+    
+    skip = (page - 1) * limit
+    coupons = await db.coupons.find(query, {"_id": 0}).skip(skip).limit(limit).sort("created_at", -1).to_list(limit)
+    total = await db.coupons.count_documents(query)
+    
+    return {"coupons": coupons, "total": total, "page": page}
+
+@api_router.get("/coupons/{coupon_id}")
+async def get_coupon(coupon_id: str, user: User = Depends(get_current_user)):
+    """Get coupon details"""
+    await require_role(user, [UserRole.ADMIN, UserRole.HOTEL_OWNER])
+    
+    coupon = await db.coupons.find_one({"coupon_id": coupon_id}, {"_id": 0})
+    if not coupon:
+        raise HTTPException(status_code=404, detail="Kupon bulunamadı.")
+    
+    # Hotel owners can only see their own coupons
+    if user.role == UserRole.HOTEL_OWNER and coupon.get("created_by") != user.user_id:
+        raise HTTPException(status_code=403, detail="Bu kupona erişim yetkiniz yok.")
+    
+    return coupon
+
+@api_router.put("/coupons/{coupon_id}")
+async def update_coupon(coupon_id: str, update_data: CouponUpdate, user: User = Depends(get_current_user)):
+    """Admin/Hotel Owner: Update coupon"""
+    await require_role(user, [UserRole.ADMIN, UserRole.HOTEL_OWNER])
+    
+    coupon = await db.coupons.find_one({"coupon_id": coupon_id}, {"_id": 0})
+    if not coupon:
+        raise HTTPException(status_code=404, detail="Kupon bulunamadı.")
+    
+    # Hotel owners can only update their own coupons
+    if user.role == UserRole.HOTEL_OWNER and coupon.get("created_by") != user.user_id:
+        raise HTTPException(status_code=403, detail="Bu kuponu güncelleme yetkiniz yok.")
+    
+    update_dict = {}
+    for key, value in update_data.model_dump().items():
+        if value is not None:
+            if key == "description" and value:
+                update_dict[key] = value.model_dump() if hasattr(value, 'model_dump') else value
+            elif key == "status":
+                update_dict[key] = value.value if hasattr(value, 'value') else value
+            else:
+                update_dict[key] = value
+    
+    if update_dict:
+        update_dict["updated_at"] = datetime.now(timezone.utc).isoformat()
+        await db.coupons.update_one({"coupon_id": coupon_id}, {"$set": update_dict})
+    
+    updated = await db.coupons.find_one({"coupon_id": coupon_id}, {"_id": 0})
+    return updated
+
+@api_router.delete("/coupons/{coupon_id}")
+async def delete_coupon(coupon_id: str, user: User = Depends(get_current_user)):
+    """Admin/Hotel Owner: Delete (disable) a coupon"""
+    await require_role(user, [UserRole.ADMIN, UserRole.HOTEL_OWNER])
+    
+    coupon = await db.coupons.find_one({"coupon_id": coupon_id}, {"_id": 0})
+    if not coupon:
+        raise HTTPException(status_code=404, detail="Kupon bulunamadı.")
+    
+    if user.role == UserRole.HOTEL_OWNER and coupon.get("created_by") != user.user_id:
+        raise HTTPException(status_code=403, detail="Bu kuponu silme yetkiniz yok.")
+    
+    await db.coupons.update_one(
+        {"coupon_id": coupon_id},
+        {"$set": {"status": CouponStatus.DISABLED.value, "updated_at": datetime.now(timezone.utc).isoformat()}}
+    )
+    
+    return {"message": "Kupon devre dışı bırakıldı."}
+
+@api_router.post("/coupons/validate")
+async def validate_coupon(request_data: CouponValidateRequest, request: Request):
+    """Validate a coupon code for a booking - works for both guests and logged-in users"""
+    # Get optional user (doesn't require auth)
+    user_data = None
+    try:
+        user = await get_optional_user(request)
+        if user:
+            user_data = {"user_id": user.user_id}
+    except:
+        pass  # No user logged in, that's fine
+    
+    code = request_data.code.upper()
+    
+    # Find the coupon
+    coupon = await db.coupons.find_one({"code": code}, {"_id": 0})
+    if not coupon:
+        return CouponValidateResponse(valid=False, message="Geçersiz kupon kodu.")
+    
+    # Check status
+    if coupon["status"] != CouponStatus.ACTIVE.value:
+        return CouponValidateResponse(valid=False, message="Bu kupon artık geçerli değil.")
+    
+    # Check date validity
+    now = datetime.now(timezone.utc).strftime("%Y-%m-%d")
+    if now < coupon["valid_from"] or now > coupon["valid_until"]:
+        return CouponValidateResponse(valid=False, message="Kupon geçerlilik tarihi dışında.")
+    
+    # Check usage limit
+    if coupon.get("usage_limit") and coupon["usage_count"] >= coupon["usage_limit"]:
+        return CouponValidateResponse(valid=False, message="Kupon kullanım limiti dolmuş.")
+    
+    # Check minimum order amount
+    if request_data.total_amount < coupon.get("min_order_amount", 0):
+        min_amount = coupon["min_order_amount"]
+        return CouponValidateResponse(valid=False, message=f"Minimum sipariş tutarı: ₺{min_amount:,.0f}")
+    
+    # Check hotel applicability
+    if coupon.get("applicable_hotels"):
+        if request_data.hotel_id not in coupon["applicable_hotels"]:
+            return CouponValidateResponse(valid=False, message="Bu kupon bu otel için geçerli değil.")
+    
+    # Check user-specific limits if logged in
+    if user_data:
+        user_id = user_data.get("user_id")
+        
+        # Check first booking only
+        if coupon.get("first_booking_only"):
+            existing_booking = await db.bookings.find_one({"user_id": user_id, "status": {"$ne": BookingStatus.CANCELLED.value}})
+            if existing_booking:
+                return CouponValidateResponse(valid=False, message="Bu kupon sadece ilk rezervasyonunuzda geçerlidir.")
+        
+        # Check per-user limit
+        per_user_limit = coupon.get("per_user_limit", 1)
+        user_usage = await db.coupon_usages.count_documents({"coupon_id": coupon["coupon_id"], "user_id": user_id})
+        if user_usage >= per_user_limit:
+            return CouponValidateResponse(valid=False, message="Bu kuponu daha fazla kullanamazsınız.")
+    
+    # Calculate discount
+    total_amount = request_data.total_amount
+    coupon_type = coupon["coupon_type"]
+    value = coupon["value"]
+    
+    if coupon_type == CouponType.PERCENTAGE.value:
+        discount_amount = total_amount * (value / 100)
+        # Apply max discount cap if set
+        if coupon.get("max_discount"):
+            discount_amount = min(discount_amount, coupon["max_discount"])
+    else:  # FIXED_AMOUNT
+        # Convert if currencies differ
+        coupon_currency = coupon.get("currency", "TRY")
+        if coupon_currency != request_data.currency.value:
+            discount_amount = convert_currency(value, coupon_currency, request_data.currency.value)
+        else:
+            discount_amount = value
+        # Don't exceed total
+        discount_amount = min(discount_amount, total_amount)
+    
+    final_amount = total_amount - discount_amount
+    
+    return CouponValidateResponse(
+        valid=True,
+        message="Kupon uygulandı!",
+        coupon_id=coupon["coupon_id"],
+        discount_amount=round(discount_amount, 2),
+        final_amount=round(final_amount, 2),
+        coupon_type=CouponType(coupon_type),
+        value=value
+    )
+
+@api_router.post("/coupons/{coupon_id}/apply")
+async def apply_coupon_to_booking(coupon_id: str, booking_id: str = Query(...), user: User = Depends(get_current_user)):
+    """Record coupon usage for a booking (internal use)"""
+    coupon = await db.coupons.find_one({"coupon_id": coupon_id}, {"_id": 0})
+    if not coupon:
+        raise HTTPException(status_code=404, detail="Kupon bulunamadı.")
+    
+    # Record usage
+    usage_doc = {
+        "usage_id": f"usage_{uuid.uuid4().hex[:12]}",
+        "coupon_id": coupon_id,
+        "user_id": user.user_id,
+        "booking_id": booking_id,
+        "used_at": datetime.now(timezone.utc).isoformat()
+    }
+    await db.coupon_usages.insert_one(usage_doc)
+    
+    # Increment usage count
+    await db.coupons.update_one(
+        {"coupon_id": coupon_id},
+        {"$inc": {"usage_count": 1}}
+    )
+    
+    return {"message": "Kupon uygulandı."}
 
 # ================== ADMIN ROUTES ==================
 
@@ -3516,7 +4077,7 @@ async def get_file(path: str, auth: str = Query(None)):
     try:
         data, content_type = get_object(path)
         return Response(content=data, media_type=record.get("content_type", content_type) if record else content_type)
-    except Exception as e:
+    except Exception:
         raise HTTPException(status_code=404, detail="File not found")
 
 @api_router.delete("/files/{file_id}")

@@ -1,13 +1,13 @@
 import { useState, useEffect } from "react";
 import { useNavigate, Link } from "react-router-dom";
-import { useLanguage, useAuth, API } from "@/App";
+import { useLanguage, useAuth, useCurrency, API } from "@/App";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Calendar } from "@/components/ui/calendar";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { format, addDays } from "date-fns";
-import { Search, MapPin, CalendarIcon, Users, Star, Shield, Headphones, CreditCard, ChevronDown, Globe, Menu, X } from "lucide-react";
+import { Search, MapPin, CalendarIcon, Users, Star, Shield, Headphones, CreditCard, ChevronDown, Globe, Menu, X, Coins } from "lucide-react";
 
 const heroImage = "https://images.unsplash.com/photo-1582875489981-9f26c469e341?crop=entropy&cs=srgb&fm=jpg&ixid=M3w4NTYxOTF8MHwxfHNlYXJjaHwyfHxpc3RhbmJ1bCUyMHNreWxpbmUlMjB0dXJrZXl8ZW58MHx8fHwxNzc0MzcyNzU0fDA&ixlib=rb-4.1.0&q=85&w=1920";
 
@@ -22,6 +22,7 @@ export default function HomePage() {
   const navigate = useNavigate();
   const { t, language, changeLanguage } = useLanguage();
   const { user, logout } = useAuth();
+  const { currency, setCurrency, currencies } = useCurrency();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   
   // Search state
@@ -65,7 +66,22 @@ export default function HomePage() {
             </Link>
             
             {/* Desktop Nav */}
-            <nav className="hidden md:flex items-center gap-6">
+            <nav className="hidden md:flex items-center gap-4">
+              {/* Currency Selector */}
+              <Select value={currency} onValueChange={setCurrency}>
+                <SelectTrigger className="w-auto border-0 bg-white/10 text-white hover:bg-white/20" data-testid="currency-selector">
+                  <Coins className="w-4 h-4 mr-2" />
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {Object.entries(currencies).map(([code, info]) => (
+                    <SelectItem key={code} value={code}>
+                      {info.symbol} {code}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              
               {/* Language Selector */}
               <Select value={language} onValueChange={changeLanguage}>
                 <SelectTrigger className="w-auto border-0 bg-white/10 text-white hover:bg-white/20" data-testid="language-selector">

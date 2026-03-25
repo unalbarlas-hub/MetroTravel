@@ -12,6 +12,8 @@ import PaymentPage from "@/pages/PaymentPage";
 import ConfirmationPage from "@/pages/ConfirmationPage";
 import LoginPage from "@/pages/LoginPage";
 import RegisterPage from "@/pages/RegisterPage";
+import ForgotPasswordPage from "@/pages/ForgotPasswordPage";
+import ResetPasswordPage from "@/pages/ResetPasswordPage";
 import UserDashboard from "@/pages/UserDashboard";
 import ExtranetDashboard from "@/pages/extranet/ExtranetDashboard";
 import ExtranetProperty from "@/pages/extranet/ExtranetProperty";
@@ -24,6 +26,7 @@ import AdminHotels from "@/pages/admin/AdminHotels";
 import AdminUsers from "@/pages/admin/AdminUsers";
 import AdminBookings from "@/pages/admin/AdminBookings";
 import AdminAgencies from "@/pages/admin/AdminAgencies";
+import AdminCoupons from "@/pages/admin/AdminCoupons";
 import AgencyDashboard from "@/pages/agency/AgencyDashboard";
 import AgencyRegister from "@/pages/agency/AgencyRegister";
 import AgencyUsers from "@/pages/agency/AgencyUsers";
@@ -51,6 +54,90 @@ export const useLanguage = () => {
   if (!context) throw new Error("useLanguage must be used within LanguageProvider");
   return context;
 };
+
+// Currency Context
+const CurrencyContext = createContext(null);
+
+export const useCurrency = () => {
+  const context = useContext(CurrencyContext);
+  if (!context) throw new Error("useCurrency must be used within CurrencyProvider");
+  return context;
+};
+
+// Supported currencies with symbols
+const CURRENCIES = {
+  TRY: { code: "TRY", symbol: "₺", name: "Türk Lirası" },
+  EUR: { code: "EUR", symbol: "€", name: "Euro" },
+  USD: { code: "USD", symbol: "$", name: "US Dollar" },
+  GBP: { code: "GBP", symbol: "£", name: "British Pound" },
+  RUB: { code: "RUB", symbol: "₽", name: "Russian Ruble" },
+  SAR: { code: "SAR", symbol: "﷼", name: "Saudi Riyal" },
+};
+
+// Exchange rates (TRY based - will be fetched from API in production)
+const DEFAULT_EXCHANGE_RATES = {
+  TRY: 1.0,
+  EUR: 0.027,
+  USD: 0.029,
+  GBP: 0.023,
+  RUB: 2.65,
+  SAR: 0.11,
+};
+
+function CurrencyProvider({ children }) {
+  const [currency, setCurrencyState] = useState(() => {
+    const saved = localStorage.getItem("currency");
+    return saved || "TRY";
+  });
+  const [exchangeRates, setExchangeRates] = useState(DEFAULT_EXCHANGE_RATES);
+
+  useEffect(() => {
+    // Fetch exchange rates from API
+    const fetchRates = async () => {
+      try {
+        const response = await fetch(`${API}/exchange-rates`);
+        if (response.ok) {
+          const data = await response.json();
+          setExchangeRates(data.rates || DEFAULT_EXCHANGE_RATES);
+        }
+      } catch (error) {
+        console.error("Failed to fetch exchange rates:", error);
+      }
+    };
+    fetchRates();
+  }, []);
+
+  const setCurrency = (code) => {
+    setCurrencyState(code);
+    localStorage.setItem("currency", code);
+  };
+
+  const convertPrice = useCallback((amount, fromCurrency = "TRY") => {
+    if (fromCurrency === currency) return amount;
+    // Convert to TRY first, then to target currency
+    const tryAmount = amount / (exchangeRates[fromCurrency] || 1);
+    return Math.round(tryAmount * (exchangeRates[currency] || 1) * 100) / 100;
+  }, [currency, exchangeRates]);
+
+  const formatPrice = useCallback((amount, fromCurrency = "TRY") => {
+    const converted = convertPrice(amount, fromCurrency);
+    const currencyInfo = CURRENCIES[currency] || CURRENCIES.TRY;
+    return `${currencyInfo.symbol}${converted.toLocaleString()}`;
+  }, [currency, convertPrice]);
+
+  return (
+    <CurrencyContext.Provider value={{ 
+      currency, 
+      setCurrency, 
+      currencies: CURRENCIES, 
+      convertPrice, 
+      formatPrice,
+      exchangeRates 
+    }}>
+      {children}
+    </CurrencyContext.Provider>
+  );
+}
 
 const translations = {
   en: {
@@ -402,6 +489,8 @@ function AppRouter() {
       <Route path="/confirmation/:bookingId" element={<ConfirmationPage />} />
       <Route path="/login" element={<LoginPage />} />
       <Route path="/register" element={<RegisterPage />} />
+      <Route path="/forgot-password" element={<ForgotPasswordPage />} />
+      <Route path="/reset-password" element={<ResetPasswordPage />} />
       
       {/* Protected User Routes */}
       <Route path="/dashboard" element={
@@ -468,6 +557,11 @@ function AppRouter() {
           <AdminAgencies />
         </ProtectedRoute>
       } />
+      <Route path="/admin/coupons" element={
+        <ProtectedRoute allowedRoles={['admin']}>
+          <AdminCoupons />
+        </ProtectedRoute>
+      } />
       
       {/* Agency (B2B) Routes */}
       <Route path="/agency" element={
@@ -511,10 +605,12 @@ function App() {
   return (
     <BrowserRouter>
       <LanguageProvider>
-        <AuthProvider>
-          <AppRouter />
-          <Toaster position="top-right" />
-        </AuthProvider>
+        <CurrencyProvider>
+          <AuthProvider>
+            <AppRouter />
+            <Toaster position="top-right" />
+          </AuthProvider>
+        </CurrencyProvider>
       </LanguageProvider>
     </BrowserRouter>
   );

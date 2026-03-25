@@ -1,12 +1,12 @@
 import { useState, useEffect } from "react";
 import { useParams, useSearchParams, useNavigate, Link } from "react-router-dom";
-import { useLanguage, useAuth, API } from "@/App";
+import { useLanguage, useAuth, useCurrency, API } from "@/App";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { toast } from "sonner";
-import { ArrowLeft, CreditCard, Lock, Check, User, Mail, Phone, Calendar, Users, MapPin } from "lucide-react";
+import { ArrowLeft, CreditCard, Lock, Check, User, Mail, Phone, Calendar, Users, MapPin, Tag, X, Loader2 } from "lucide-react";
 
 export default function BookingPage() {
   const { hotelId } = useParams();
@@ -14,12 +14,19 @@ export default function BookingPage() {
   const navigate = useNavigate();
   const { t, language } = useLanguage();
   const { user } = useAuth();
+  const { formatPrice, currency } = useCurrency();
   
   const [hotel, setHotel] = useState(null);
   const [room, setRoom] = useState(null);
   const [ratePlan, setRatePlan] = useState(null);
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
+  
+  // Coupon state
+  const [couponCode, setCouponCode] = useState("");
+  const [appliedCoupon, setAppliedCoupon] = useState(null);
+  const [couponLoading, setCouponLoading] = useState(false);
+  const [discountAmount, setDiscountAmount] = useState(0);
   
   const checkIn = searchParams.get("checkIn") || "";
   const checkOut = searchParams.get("checkOut") || "";
@@ -72,6 +79,60 @@ export default function BookingPage() {
     setFormData(prev => ({ ...prev, [name]: value }));
   };
   
+  // Coupon validation
+  const handleApplyCoupon = async () => {
+    if (!couponCode.trim()) {
+      toast.error("Lütfen kupon kodu girin.");
+      return;
+    }
+    
+    setCouponLoading(true);
+    try {
+      const totalPrice = ratePlan?.total_price || ratePlan?.base_price || 0;
+      const response = await fetch(`${API}/coupons/validate`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify({
+          code: couponCode.toUpperCase(),
+          hotel_id: hotelId,
+          total_amount: totalPrice,
+          currency: "TRY"
+        })
+      });
+      
+      const data = await response.json();
+      
+      if (data.valid) {
+        setAppliedCoupon({
+          code: couponCode.toUpperCase(),
+          coupon_id: data.coupon_id,
+          discount_amount: data.discount_amount,
+          final_amount: data.final_amount,
+          coupon_type: data.coupon_type,
+          value: data.value
+        });
+        setDiscountAmount(data.discount_amount);
+        toast.success(data.message);
+      } else {
+        toast.error(data.message);
+        setAppliedCoupon(null);
+        setDiscountAmount(0);
+      }
+    } catch (error) {
+      console.error("Coupon validation error:", error);
+      toast.error("Kupon doğrulanamadı.");
+    } finally {
+      setCouponLoading(false);
+    }
+  };
+  
+  const handleRemoveCoupon = () => {
+    setAppliedCoupon(null);
+    setDiscountAmount(0);
+    setCouponCode("");
+  };
+  
   const handleSubmit = async (e) => {
     e.preventDefault();
     
@@ -106,6 +167,7 @@ export default function BookingPage() {
           adults,
           children,
           children_ages: [],
+          coupon_code: appliedCoupon?.code || null,
         }),
       });
       
@@ -378,16 +440,86 @@ export default function BookingPage() {
                 )}
               </div>
               
+              {/* Coupon Section */}
+              <div className="py-4 border-b">
+                <h4 className="font-medium mb-3 flex items-center gap-2">
+                  <Tag className="w-4 h-4 text-metro-orange" />
+                  {language === "tr" ? "İndirim Kuponu" : "Discount Code"}
+                </h4>
+                
+                {!appliedCoupon ? (
+                  <div className="flex gap-2">
+                    <Input
+                      placeholder={language === "tr" ? "Kupon kodu" : "Enter code"}
+                      value={couponCode}
+                      onChange={(e) => setCouponCode(e.target.value.toUpperCase())}
+                      className="flex-1 uppercase"
+                      data-testid="coupon-input"
+                    />
+                    <Button 
+                      type="button"
+                      variant="outline" 
+                      onClick={handleApplyCoupon}
+                      disabled={couponLoading || !couponCode.trim()}
+                      data-testid="apply-coupon-btn"
+                    >
+                      {couponLoading ? (
+                        <Loader2 className="w-4 h-4 animate-spin" />
+                      ) : (
+                        language === "tr" ? "Uygula" : "Apply"
+                      )}
+                    </Button>
+                  </div>
+                ) : (
+                  <div className="bg-emerald-50 border border-emerald-200 rounded-lg p-3">
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-2">
+                        <Check className="w-4 h-4 text-emerald-600" />
+                        <span className="font-mono font-semibold text-emerald-700">{appliedCoupon.code}</span>
+                      </div>
+                      <button 
+                        onClick={handleRemoveCoupon}
+                        className="text-slate-400 hover:text-slate-600"
+                        data-testid="remove-coupon-btn"
+                      >
+                        <X className="w-4 h-4" />
+                      </button>
+                    </div>
+                    <div className="text-sm text-emerald-600 mt-1">
+                      {appliedCoupon.coupon_type === "percentage" 
+                        ? `%${appliedCoupon.value} indirim` 
+                        : `₺${appliedCoupon.value} indirim`
+                      }
+                      {" - "}₺{appliedCoupon.discount_amount.toLocaleString()} kazandınız!
+                    </div>
+                  </div>
+                )}
+              </div>
+              
               {/* Price */}
               <div className="pt-4">
+                {/* Original Price (if coupon applied) */}
+                {appliedCoupon && discountAmount > 0 && (
+                  <div className="space-y-2 mb-3 pb-3 border-b">
+                    <div className="flex justify-between text-sm">
+                      <span className="text-muted-foreground">{language === "tr" ? "Ara Toplam" : "Subtotal"}</span>
+                      <span className="line-through text-muted-foreground">₺{totalPrice.toLocaleString()}</span>
+                    </div>
+                    <div className="flex justify-between text-sm text-emerald-600">
+                      <span>{language === "tr" ? "Kupon İndirimi" : "Discount"}</span>
+                      <span>-₺{discountAmount.toLocaleString()}</span>
+                    </div>
+                  </div>
+                )}
+                
                 <div className="flex justify-between items-center">
                   <span className="font-semibold text-lg">{t("totalPrice")}</span>
                   <span className="text-price font-bold text-2xl">
-                    ₺{totalPrice.toLocaleString()}
+                    ₺{(totalPrice - discountAmount).toLocaleString()}
                   </span>
                 </div>
                 <div className="text-xs text-muted-foreground text-right mt-1">
-                  Includes taxes and fees
+                  {language === "tr" ? "Vergiler dahil" : "Includes taxes and fees"}
                 </div>
               </div>
             </div>
