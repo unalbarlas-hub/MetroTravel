@@ -154,7 +154,29 @@ Build a scalable, production-ready Hotel Booking & Travel Platform similar to Bo
     - Photo upload with drag & drop
     - Multi-language support (TR/EN)
 
-- ✅ **Market-Based Pricing with Currency Support** (COMPLETED - March 25, 2026)
+- ✅ **Map View for Search Results** (COMPLETED - March 25, 2026)
+  - **Leaflet/OpenStreetMap Integration**: Interactive map with hotel markers
+  - **Price Markers**: Each hotel shown with TRY price badge
+  - **View Toggle**: Liste/Harita buttons to switch views
+  - **City Coordinates**: Pre-defined coordinates for 12 Turkish cities
+  - **Hotel Info Card**: Hover/click shows hotel details with photo, rating, price
+  - **Map Legend**: Shows hotel count
+  - **Responsive Design**: Works on mobile and desktop
+
+- ✅ **Cancellation & Refund System** (COMPLETED - March 25, 2026)
+  - **Policy-Based Refunds**: Hotels define free_cancellation_days and penalty_percentage
+  - **Refund Preview**: GET /api/bookings/{id}/cancellation-info shows:
+    - Days until check-in
+    - Full/Partial/No refund calculation
+    - Penalty amount based on policy
+  - **Cancel with Refund**: POST /api/bookings/{id}/cancel:
+    - Creates cancellation record
+    - Calculates refund based on policy
+    - Restores room inventory
+    - Sends cancellation email with refund details
+  - **User Dashboard**: Cancel button with dialog showing refund preview
+  - **Admin View**: GET /api/admin/cancellations with pagination
+  - **Refund Processing**: Admin can mark refunds as processed
   - **20 Country Markets**: TR, DE, GB, FR, NL, BE, RU, UA, PL, US, CA, AU, IT, ES, AT, CH, SE, NO, DK, SA
   - **14 Currencies**: TRY, EUR, USD, GBP, RUB, SAR, AUD, CAD, CHF, SEK, NOK, DKK, PLN, UAH
   - **Exchange Rates**: TRY-based conversion system, admin-configurable
@@ -191,8 +213,8 @@ Build a scalable, production-ready Hotel Booking & Travel Platform similar to Bo
 - [x] ~~B2B Agency Panel with commission management~~ **DONE - March 25, 2026**
 - [x] ~~Backend support for Market-based pricing (20 markets)~~ **DONE - March 25, 2026**
 - [x] ~~Currency conversion with exchange rates~~ **DONE - March 25, 2026**
-- [ ] Cancellation workflow with refund processing
-- [ ] Search by map location
+- [x] ~~Cancellation workflow with refund processing~~ **DONE - March 25, 2026**
+- [x] ~~Search by map location (Leaflet/OpenStreetMap)~~ **DONE - March 25, 2026**
 
 ### P2 - Medium Priority
 - [ ] Promotion/coupon system
@@ -297,11 +319,10 @@ IYZICO_BASE_URL=https://sandbox-api.iyzipay.com (or https://api.iyzipay.com for 
 5. Add map view for search results
 
 ## Test Reports
+- `/app/test_reports/iteration_9.json` - Map View & Cancellation System (100% pass rate)
 - `/app/test_reports/iteration_8.json` - Market Pricing & Currency Support (100% pass rate)
 - `/app/test_reports/iteration_7.json` - Registration Backend/Frontend Sync (100% pass rate)
 - `/app/test_reports/iteration_6.json` - Premium Registration Pages (100% pass rate)
 - `/app/test_reports/iteration_5.json` - B2B Agency Panel (100% pass rate)
-- `/app/test_reports/iteration_4.json` - Extranet Pricing
-- `/app/test_reports/iteration_3.json` - Brand & Core features
-- Backend: 62+ tests passed
+- Backend: 79+ tests passed
 - Frontend: All panels fully functional
