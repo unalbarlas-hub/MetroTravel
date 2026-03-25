@@ -125,6 +125,8 @@ class UserRole(str, Enum):
     CUSTOMER = "customer"
     HOTEL_OWNER = "hotel_owner"
     ADMIN = "admin"
+    AGENCY_OWNER = "agency_owner"
+    AGENCY_USER = "agency_user"
 
 class PropertyType(str, Enum):
     HOTEL = "hotel"
@@ -276,6 +278,7 @@ class User(UserBase):
     preferred_currency: Currency = Currency.TRY
     created_at: datetime
     is_active: bool = True
+    agency_id: Optional[str] = None
 
 class UserUpdate(BaseModel):
     name: Optional[str] = None
@@ -846,6 +849,42 @@ async def get_optional_user(request: Request) -> Optional[User]:
     except HTTPException:
         return None
 
+async def get_current_user_dict(request: Request) -> dict:
+    """Get current user as dictionary for routes that need .get() access."""
+    # Check cookie first, then Authorization header
+    token = request.cookies.get("session_token")
+    if not token:
+        auth_header = request.headers.get("Authorization")
+        if auth_header and auth_header.startswith("Bearer "):
+            token = auth_header.split(" ")[1]
+    
+    if not token:
+        raise HTTPException(status_code=401, detail="Not authenticated")
+    
+    # Check if it's a session token (from Google OAuth)
+    session = await db.user_sessions.find_one({"session_token": token}, {"_id": 0})
+    if session:
+        # Verify session expiry
+        expires_at = session.get("expires_at")
+        if isinstance(expires_at, str):
+            expires_at = datetime.fromisoformat(expires_at)
+        if expires_at.tzinfo is None:
+            expires_at = expires_at.replace(tzinfo=timezone.utc)
+        if expires_at < datetime.now(timezone.utc):
+            raise HTTPException(status_code=401, detail="Session expired")
+        
+        user = await db.users.find_one({"user_id": session["user_id"]}, {"_id": 0})
+        if not user:
+            raise HTTPException(status_code=404, detail="User not found")
+        return user
+    
+    # Try JWT token
+    payload = decode_jwt_token(token)
+    user = await db.users.find_one({"user_id": payload["user_id"]}, {"_id": 0})
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+    return user
+
 async def require_role(user: User, roles: List[UserRole]):
     if user.role not in roles:
         raise HTTPException(status_code=403, detail="Insufficient permissions")
@@ -917,7 +956,8 @@ async def login(credentials: UserLogin, response: Response):
         "email": user["email"],
         "name": user["name"],
         "role": user["role"],
-        "token": token
+        "token": token,
+        "agency_id": user.get("agency_id")
     }
 
 @api_router.post("/auth/session")
@@ -1017,7 +1057,8 @@ async def get_me(user: User = Depends(get_current_user)):
         "picture": user.picture,
         "role": user.role,
         "preferred_language": user.preferred_language,
-        "preferred_currency": user.preferred_currency
+        "preferred_currency": user.preferred_currency,
+        "agency_id": user.agency_id
     }
 
 @api_router.post("/auth/logout")
@@ -2187,7 +2228,7 @@ async def mock_complete_payment(booking_id: str):
 # ================== AGENCY / B2B ROUTES ==================
 
 @api_router.post("/agencies")
-async def create_agency(agency_data: AgencyCreate, user: dict = Depends(get_current_user)):
+async def create_agency(agency_data: AgencyCreate, user: dict = Depends(get_current_user_dict)):
     """Create a new agency account"""
     # Check if email already exists
     existing = await db.agencies.find_one({"email": agency_data.email})
@@ -2240,7 +2281,7 @@ async def list_agencies(
     status: Optional[str] = None,
     page: int = 1,
     limit: int = 20,
-    user: dict = Depends(get_current_user)
+    user: dict = Depends(get_current_user_dict)
 ):
     """List agencies (admin only)"""
     if user.get("role") != "admin":
@@ -2257,7 +2298,7 @@ async def list_agencies(
     return {"agencies": agencies, "total": total, "page": page, "limit": limit}
 
 @api_router.get("/agencies/{agency_id}")
-async def get_agency(agency_id: str, user: dict = Depends(get_current_user)):
+async def get_agency(agency_id: str, user: dict = Depends(get_current_user_dict)):
     """Get agency details"""
     agency = await db.agencies.find_one({"agency_id": agency_id}, {"_id": 0})
     if not agency:
@@ -2270,7 +2311,7 @@ async def get_agency(agency_id: str, user: dict = Depends(get_current_user)):
     return agency
 
 @api_router.put("/agencies/{agency_id}")
-async def update_agency(agency_id: str, update_data: AgencyUpdate, user: dict = Depends(get_current_user)):
+async def update_agency(agency_id: str, update_data: AgencyUpdate, user: dict = Depends(get_current_user_dict)):
     """Update agency details"""
     agency = await db.agencies.find_one({"agency_id": agency_id})
     if not agency:
@@ -2289,7 +2330,7 @@ async def update_agency(agency_id: str, update_data: AgencyUpdate, user: dict = 
     return updated
 
 @api_router.put("/admin/agencies/{agency_id}/approve")
-async def approve_agency(agency_id: str, user: dict = Depends(get_current_user)):
+async def approve_agency(agency_id: str, user: dict = Depends(get_current_user_dict)):
     """Approve an agency (admin only)"""
     if user.get("role") != "admin":
         raise HTTPException(status_code=403, detail="Admin yetkisi gerekli")
@@ -2312,7 +2353,7 @@ async def update_agency_credit(
     amount: float = Query(..., description="Kredi miktarı"),
     transaction_type: str = Query(..., description="credit veya debit"),
     description: str = Query("Manuel kredi işlemi"),
-    user: dict = Depends(get_current_user)
+    user: dict = Depends(get_current_user_dict)
 ):
     """Update agency credit limit (admin only)"""
     if user.get("role") != "admin":
@@ -2358,7 +2399,7 @@ async def update_agency_commission(
     agency_id: str,
     commission_rate: float = Query(..., ge=0, le=100),
     markup_rate: float = Query(0, ge=0, le=100),
-    user: dict = Depends(get_current_user)
+    user: dict = Depends(get_current_user_dict)
 ):
     """Update agency commission settings (admin only)"""
     if user.get("role") != "admin":
@@ -2381,7 +2422,7 @@ async def update_agency_commission(
 
 # Agency Sub-Users
 @api_router.post("/agencies/{agency_id}/users")
-async def create_agency_user(agency_id: str, user_data: AgencyUserCreate, user: dict = Depends(get_current_user)):
+async def create_agency_user(agency_id: str, user_data: AgencyUserCreate, user: dict = Depends(get_current_user_dict)):
     """Create a sub-user for agency"""
     agency = await db.agencies.find_one({"agency_id": agency_id})
     if not agency:
@@ -2426,7 +2467,7 @@ async def create_agency_user(agency_id: str, user_data: AgencyUserCreate, user: 
     return user_doc
 
 @api_router.get("/agencies/{agency_id}/users")
-async def list_agency_users(agency_id: str, user: dict = Depends(get_current_user)):
+async def list_agency_users(agency_id: str, user: dict = Depends(get_current_user_dict)):
     """List all users in an agency"""
     agency = await db.agencies.find_one({"agency_id": agency_id})
     if not agency:
@@ -2448,7 +2489,7 @@ async def update_agency_user(
     agency_id: str,
     user_id: str,
     update_data: AgencyUserUpdate,
-    user: dict = Depends(get_current_user)
+    user: dict = Depends(get_current_user_dict)
 ):
     """Update an agency sub-user"""
     agency = await db.agencies.find_one({"agency_id": agency_id})
@@ -2481,7 +2522,7 @@ async def update_agency_user(
     return updated
 
 @api_router.delete("/agencies/{agency_id}/users/{user_id}")
-async def delete_agency_user(agency_id: str, user_id: str, user: dict = Depends(get_current_user)):
+async def delete_agency_user(agency_id: str, user_id: str, user: dict = Depends(get_current_user_dict)):
     """Deactivate an agency sub-user"""
     agency = await db.agencies.find_one({"agency_id": agency_id})
     if not agency:
@@ -2505,7 +2546,7 @@ async def delete_agency_user(agency_id: str, user_id: str, user: dict = Depends(
 async def create_agency_booking(
     agency_id: str,
     booking_data: AgencyBookingRequest,
-    user: dict = Depends(get_current_user)
+    user: dict = Depends(get_current_user_dict)
 ):
     """Create a booking on behalf of agency"""
     agency = await db.agencies.find_one({"agency_id": agency_id})
@@ -2618,7 +2659,7 @@ async def list_agency_bookings(
     status: Optional[str] = None,
     page: int = 1,
     limit: int = 20,
-    user: dict = Depends(get_current_user)
+    user: dict = Depends(get_current_user_dict)
 ):
     """List bookings for an agency"""
     agency = await db.agencies.find_one({"agency_id": agency_id})
@@ -2643,7 +2684,7 @@ async def list_agency_transactions(
     agency_id: str,
     page: int = 1,
     limit: int = 50,
-    user: dict = Depends(get_current_user)
+    user: dict = Depends(get_current_user_dict)
 ):
     """List credit transactions for an agency"""
     agency = await db.agencies.find_one({"agency_id": agency_id})
@@ -2663,7 +2704,7 @@ async def list_agency_transactions(
     return {"transactions": transactions, "total": total, "page": page, "limit": limit}
 
 @api_router.get("/agencies/{agency_id}/dashboard")
-async def get_agency_dashboard(agency_id: str, user: dict = Depends(get_current_user)):
+async def get_agency_dashboard(agency_id: str, user: dict = Depends(get_current_user_dict)):
     """Get agency dashboard data"""
     agency = await db.agencies.find_one({"agency_id": agency_id}, {"_id": 0})
     if not agency:

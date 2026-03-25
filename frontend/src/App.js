@@ -22,6 +22,13 @@ import AdminDashboard from "@/pages/admin/AdminDashboard";
 import AdminHotels from "@/pages/admin/AdminHotels";
 import AdminUsers from "@/pages/admin/AdminUsers";
 import AdminBookings from "@/pages/admin/AdminBookings";
+import AdminAgencies from "@/pages/admin/AdminAgencies";
+import AgencyDashboard from "@/pages/agency/AgencyDashboard";
+import AgencyRegister from "@/pages/agency/AgencyRegister";
+import AgencyUsers from "@/pages/agency/AgencyUsers";
+import AgencyBookings from "@/pages/agency/AgencyBookings";
+import AgencyTransactions from "@/pages/agency/AgencyTransactions";
+import AgencySettings from "@/pages/agency/AgencySettings";
 
 const BACKEND_URL = process.env.REACT_APP_BACKEND_URL;
 export const API = `${BACKEND_URL}/api`;
@@ -448,6 +455,43 @@ function AppRouter() {
       <Route path="/admin/bookings" element={
         <ProtectedRoute allowedRoles={['admin']}>
           <AdminBookings />
+        </ProtectedRoute>
+      } />
+      <Route path="/admin/agencies" element={
+        <ProtectedRoute allowedRoles={['admin']}>
+          <AdminAgencies />
+        </ProtectedRoute>
+      } />
+      
+      {/* Agency (B2B) Routes */}
+      <Route path="/agency" element={
+        <ProtectedRoute>
+          <AgencyDashboard />
+        </ProtectedRoute>
+      } />
+      <Route path="/agency/register" element={
+        <ProtectedRoute>
+          <AgencyRegister />
+        </ProtectedRoute>
+      } />
+      <Route path="/agency/users" element={
+        <ProtectedRoute allowedRoles={['agency_owner', 'admin']}>
+          <AgencyUsers />
+        </ProtectedRoute>
+      } />
+      <Route path="/agency/bookings" element={
+        <ProtectedRoute allowedRoles={['agency_owner', 'agency_user', 'admin']}>
+          <AgencyBookings />
+        </ProtectedRoute>
+      } />
+      <Route path="/agency/transactions" element={
+        <ProtectedRoute allowedRoles={['agency_owner', 'agency_user', 'admin']}>
+          <AgencyTransactions />
+        </ProtectedRoute>
+      } />
+      <Route path="/agency/settings" element={
+        <ProtectedRoute allowedRoles={['agency_owner', 'admin']}>
+          <AgencySettings />
         </ProtectedRoute>
       } />
       
