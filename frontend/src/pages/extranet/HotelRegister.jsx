@@ -191,7 +191,7 @@ export default function HotelRegister() {
         website: formData.website
       };
 
-      const res = await fetch(`${API}/hotels`, {
+      const res = await fetch(`${API}/hotels/register`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -203,7 +203,8 @@ export default function HotelRegister() {
 
       if (res.ok) {
         toast.success("Tesisiniz başarıyla kaydedildi! Onay sürecine alındı.");
-        navigate("/extranet");
+        // Refresh user data to get updated role
+        window.location.href = "/extranet";
       } else {
         const error = await res.json();
         toast.error(error.detail || "Kayıt başarısız");

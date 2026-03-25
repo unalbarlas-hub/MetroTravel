@@ -1082,6 +1082,101 @@ async def update_profile(update_data: UserUpdate, user: User = Depends(get_curre
 
 # ================== HOTEL ROUTES ==================
 
+class SimpleHotelRegister(BaseModel):
+    """Simple hotel registration model for frontend form"""
+    name: str
+    name_translations: Optional[dict] = None
+    property_type: str
+    star_rating: int = Field(ge=1, le=5)
+    city: str
+    district: Optional[str] = None
+    street_address: Optional[str] = None
+    postal_code: Optional[str] = None
+    country: str = "Turkey"
+    description: Optional[str] = None
+    description_translations: Optional[dict] = None
+    amenities: List[str] = []
+    check_in_time: str = "14:00"
+    check_out_time: str = "12:00"
+    images: List[str] = []
+    contact_email: Optional[str] = None
+    contact_phone: Optional[str] = None
+    website: Optional[str] = None
+
+@api_router.post("/hotels/register")
+async def register_hotel_simple(hotel_data: SimpleHotelRegister, user: User = Depends(get_current_user)):
+    """Simple hotel registration endpoint for frontend form - upgrades user to hotel_owner"""
+    
+    hotel_id = f"hotel_{uuid.uuid4().hex[:12]}"
+    now = datetime.now(timezone.utc)
+    
+    # Build name translations
+    name_obj = {
+        "en": hotel_data.name,
+        "tr": hotel_data.name_translations.get("tr", hotel_data.name) if hotel_data.name_translations else hotel_data.name,
+        "de": hotel_data.name_translations.get("de", hotel_data.name) if hotel_data.name_translations else hotel_data.name
+    }
+    
+    # Build description translations
+    desc_obj = {
+        "en": hotel_data.description or "",
+        "tr": hotel_data.description_translations.get("tr", hotel_data.description or "") if hotel_data.description_translations else (hotel_data.description or ""),
+        "de": hotel_data.description_translations.get("de", hotel_data.description or "") if hotel_data.description_translations else (hotel_data.description or "")
+    }
+    
+    # Build address
+    address_obj = {
+        "city": hotel_data.city,
+        "district": hotel_data.district or "",
+        "street_address": hotel_data.street_address or "",
+        "postal_code": hotel_data.postal_code or "",
+        "country": hotel_data.country
+    }
+    
+    hotel_doc = {
+        "hotel_id": hotel_id,
+        "owner_id": user.user_id,
+        "name": name_obj,
+        "property_type": hotel_data.property_type,
+        "star_rating": hotel_data.star_rating,
+        "address": address_obj,
+        "description": desc_obj,
+        "times": {
+            "check_in": hotel_data.check_in_time,
+            "check_out": hotel_data.check_out_time
+        },
+        "property_amenities": hotel_data.amenities,
+        "cancellation_policy": {
+            "free_cancellation_days": 1,
+            "penalty_percentage": 100.0,
+            "no_show_penalty": 100.0
+        },
+        "contact_email": hotel_data.contact_email or user.email,
+        "contact_phone": hotel_data.contact_phone or "",
+        "website": hotel_data.website or "",
+        "status": HotelStatus.PENDING.value,
+        "photos": hotel_data.images,
+        "rating_average": 0.0,
+        "rating_count": 0,
+        "created_at": now.isoformat(),
+        "updated_at": now.isoformat()
+    }
+    
+    await db.hotels.insert_one(hotel_doc)
+    
+    # Upgrade user to hotel_owner if they're a customer
+    if user.role == UserRole.CUSTOMER:
+        await db.users.update_one(
+            {"user_id": user.user_id},
+            {"$set": {"role": "hotel_owner"}}
+        )
+    
+    # Return without _id
+    if "_id" in hotel_doc:
+        del hotel_doc["_id"]
+    
+    return {"message": "Tesis başarıyla kaydedildi", "hotel_id": hotel_id, "status": "pending"}
+
 @api_router.post("/hotels")
 async def create_hotel(hotel_data: HotelCreate, user: User = Depends(get_current_user)):
     await require_role(user, [UserRole.HOTEL_OWNER, UserRole.ADMIN])
