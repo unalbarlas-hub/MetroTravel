@@ -181,6 +181,22 @@ class HotelStatus(str, Enum):
     REJECTED = "rejected"
     SUSPENDED = "suspended"
 
+class AgencyStatus(str, Enum):
+    PENDING = "pending"
+    APPROVED = "approved"
+    SUSPENDED = "suspended"
+    REJECTED = "rejected"
+
+class AgencyUserRole(str, Enum):
+    OWNER = "owner"
+    ADMIN = "admin"
+    AGENT = "agent"
+    FINANCE = "finance"
+
+class CommissionType(str, Enum):
+    PERCENTAGE = "percentage"
+    FIXED = "fixed"
+
 class Currency(str, Enum):
     TRY = "TRY"
     EUR = "EUR"
@@ -516,6 +532,113 @@ class Review(BaseModel):
 
 class ReviewResponse(BaseModel):
     response: str
+
+# ================== AGENCY / B2B MODELS ==================
+
+class AgencyCreate(BaseModel):
+    """Create a new agency"""
+    name: str
+    contact_person: str
+    email: EmailStr
+    phone: str
+    address: Optional[str] = None
+    city: str
+    country: str = "Turkey"
+    tax_number: Optional[str] = None
+    website: Optional[str] = None
+
+class AgencyUpdate(BaseModel):
+    """Update agency details"""
+    name: Optional[str] = None
+    contact_person: Optional[str] = None
+    email: Optional[EmailStr] = None
+    phone: Optional[str] = None
+    address: Optional[str] = None
+    city: Optional[str] = None
+    tax_number: Optional[str] = None
+    website: Optional[str] = None
+
+class Agency(BaseModel):
+    model_config = ConfigDict(extra="ignore")
+    agency_id: str
+    name: str
+    contact_person: str
+    email: str
+    phone: str
+    address: Optional[str] = None
+    city: str
+    country: str = "Turkey"
+    tax_number: Optional[str] = None
+    website: Optional[str] = None
+    status: AgencyStatus = AgencyStatus.PENDING
+    credit_limit: float = 0.0
+    credit_used: float = 0.0
+    commission_rate: float = 10.0  # Percentage
+    commission_type: CommissionType = CommissionType.PERCENTAGE
+    markup_rate: float = 0.0  # Default markup percentage
+    total_bookings: int = 0
+    total_revenue: float = 0.0
+    created_at: datetime
+    approved_at: Optional[datetime] = None
+
+class AgencyUserCreate(BaseModel):
+    """Create a sub-user for agency"""
+    name: str
+    email: EmailStr
+    password: str
+    role: AgencyUserRole = AgencyUserRole.AGENT
+    phone: Optional[str] = None
+
+class AgencyUserUpdate(BaseModel):
+    """Update agency sub-user"""
+    name: Optional[str] = None
+    phone: Optional[str] = None
+    role: Optional[AgencyUserRole] = None
+    is_active: Optional[bool] = None
+
+class AgencyUser(BaseModel):
+    model_config = ConfigDict(extra="ignore")
+    user_id: str
+    agency_id: str
+    name: str
+    email: str
+    phone: Optional[str] = None
+    role: AgencyUserRole
+    is_active: bool = True
+    created_at: datetime
+    last_login: Optional[datetime] = None
+
+class CreditTransaction(BaseModel):
+    """Credit/Debit transaction for agency"""
+    transaction_id: str
+    agency_id: str
+    amount: float
+    transaction_type: str  # credit, debit, refund
+    description: str
+    booking_id: Optional[str] = None
+    created_at: datetime
+    created_by: str  # admin user_id
+
+class CommissionSettings(BaseModel):
+    """Commission and markup settings for an agency"""
+    agency_id: str
+    commission_rate: float  # Percentage commission Metro Travel earns
+    commission_type: CommissionType
+    markup_rate: float  # Percentage the agency adds on top
+    hotel_specific: Optional[Dict[str, float]] = None  # hotel_id -> commission_rate
+
+class AgencyBookingRequest(BaseModel):
+    """Booking request from agency"""
+    hotel_id: str
+    check_in: str
+    check_out: str
+    rooms: List[Any]
+    guest_info: Any
+    adults: int
+    children: int = 0
+    children_ages: List[int] = []
+    use_credit: bool = True  # Whether to use credit limit
+    markup_amount: Optional[float] = None  # Custom markup for this booking
 
 # ================== IYZICO PAYMENT MODELS ==================
 
@@ -2060,6 +2183,533 @@ async def mock_complete_payment(booking_id: str):
     ))
     
     return {"status": "success", "message": "Mock ödeme tamamlandı", "booking_id": booking_id}
+
+# ================== AGENCY / B2B ROUTES ==================
+
+@api_router.post("/agencies")
+async def create_agency(agency_data: AgencyCreate, user: dict = Depends(get_current_user)):
+    """Create a new agency account"""
+    # Check if email already exists
+    existing = await db.agencies.find_one({"email": agency_data.email})
+    if existing:
+        raise HTTPException(status_code=400, detail="Bu e-posta ile kayıtlı bir acenta zaten var")
+    
+    agency_id = f"agency_{uuid.uuid4().hex[:12]}"
+    now = datetime.now(timezone.utc)
+    
+    agency_doc = {
+        "agency_id": agency_id,
+        "name": agency_data.name,
+        "contact_person": agency_data.contact_person,
+        "email": agency_data.email,
+        "phone": agency_data.phone,
+        "address": agency_data.address,
+        "city": agency_data.city,
+        "country": agency_data.country,
+        "tax_number": agency_data.tax_number,
+        "website": agency_data.website,
+        "status": AgencyStatus.PENDING.value,
+        "credit_limit": 0.0,
+        "credit_used": 0.0,
+        "credit_balance": 0.0,
+        "commission_rate": 10.0,
+        "commission_type": CommissionType.PERCENTAGE.value,
+        "markup_rate": 5.0,
+        "total_bookings": 0,
+        "total_revenue": 0.0,
+        "owner_user_id": user.get("user_id"),
+        "created_at": now.isoformat(),
+        "approved_at": None
+    }
+    
+    await db.agencies.insert_one(agency_doc)
+    
+    # Update user role to agency_owner
+    await db.users.update_one(
+        {"user_id": user.get("user_id")},
+        {"$set": {"role": "agency_owner", "agency_id": agency_id}}
+    )
+    
+    if "_id" in agency_doc:
+        del agency_doc["_id"]
+    
+    return agency_doc
+
+@api_router.get("/agencies")
+async def list_agencies(
+    status: Optional[str] = None,
+    page: int = 1,
+    limit: int = 20,
+    user: dict = Depends(get_current_user)
+):
+    """List agencies (admin only)"""
+    if user.get("role") != "admin":
+        raise HTTPException(status_code=403, detail="Admin yetkisi gerekli")
+    
+    query = {}
+    if status:
+        query["status"] = status
+    
+    skip = (page - 1) * limit
+    agencies = await db.agencies.find(query, {"_id": 0}).skip(skip).limit(limit).to_list(limit)
+    total = await db.agencies.count_documents(query)
+    
+    return {"agencies": agencies, "total": total, "page": page, "limit": limit}
+
+@api_router.get("/agencies/{agency_id}")
+async def get_agency(agency_id: str, user: dict = Depends(get_current_user)):
+    """Get agency details"""
+    agency = await db.agencies.find_one({"agency_id": agency_id}, {"_id": 0})
+    if not agency:
+        raise HTTPException(status_code=404, detail="Acenta bulunamadı")
+    
+    # Check access
+    if user.get("role") != "admin" and user.get("agency_id") != agency_id:
+        raise HTTPException(status_code=403, detail="Erişim reddedildi")
+    
+    return agency
+
+@api_router.put("/agencies/{agency_id}")
+async def update_agency(agency_id: str, update_data: AgencyUpdate, user: dict = Depends(get_current_user)):
+    """Update agency details"""
+    agency = await db.agencies.find_one({"agency_id": agency_id})
+    if not agency:
+        raise HTTPException(status_code=404, detail="Acenta bulunamadı")
+    
+    # Check access - admin or agency owner
+    if user.get("role") != "admin" and agency.get("owner_user_id") != user.get("user_id"):
+        raise HTTPException(status_code=403, detail="Erişim reddedildi")
+    
+    update_dict = {k: v for k, v in update_data.model_dump().items() if v is not None}
+    if update_dict:
+        update_dict["updated_at"] = datetime.now(timezone.utc).isoformat()
+        await db.agencies.update_one({"agency_id": agency_id}, {"$set": update_dict})
+    
+    updated = await db.agencies.find_one({"agency_id": agency_id}, {"_id": 0})
+    return updated
+
+@api_router.put("/admin/agencies/{agency_id}/approve")
+async def approve_agency(agency_id: str, user: dict = Depends(get_current_user)):
+    """Approve an agency (admin only)"""
+    if user.get("role") != "admin":
+        raise HTTPException(status_code=403, detail="Admin yetkisi gerekli")
+    
+    agency = await db.agencies.find_one({"agency_id": agency_id})
+    if not agency:
+        raise HTTPException(status_code=404, detail="Acenta bulunamadı")
+    
+    now = datetime.now(timezone.utc).isoformat()
+    await db.agencies.update_one(
+        {"agency_id": agency_id},
+        {"$set": {"status": AgencyStatus.APPROVED.value, "approved_at": now}}
+    )
+    
+    return {"message": "Acenta onaylandı", "agency_id": agency_id}
+
+@api_router.put("/admin/agencies/{agency_id}/credit")
+async def update_agency_credit(
+    agency_id: str,
+    amount: float = Query(..., description="Kredi miktarı"),
+    transaction_type: str = Query(..., description="credit veya debit"),
+    description: str = Query("Manuel kredi işlemi"),
+    user: dict = Depends(get_current_user)
+):
+    """Update agency credit limit (admin only)"""
+    if user.get("role") != "admin":
+        raise HTTPException(status_code=403, detail="Admin yetkisi gerekli")
+    
+    agency = await db.agencies.find_one({"agency_id": agency_id})
+    if not agency:
+        raise HTTPException(status_code=404, detail="Acenta bulunamadı")
+    
+    now = datetime.now(timezone.utc).isoformat()
+    
+    if transaction_type == "credit":
+        new_limit = agency.get("credit_limit", 0) + amount
+        new_balance = agency.get("credit_balance", 0) + amount
+    elif transaction_type == "debit":
+        new_limit = agency.get("credit_limit", 0) - amount
+        new_balance = agency.get("credit_balance", 0) - amount
+    else:
+        raise HTTPException(status_code=400, detail="Geçersiz işlem tipi")
+    
+    # Create transaction record
+    transaction = {
+        "transaction_id": f"txn_{uuid.uuid4().hex[:12]}",
+        "agency_id": agency_id,
+        "amount": amount,
+        "transaction_type": transaction_type,
+        "description": description,
+        "created_at": now,
+        "created_by": user.get("user_id")
+    }
+    await db.credit_transactions.insert_one(transaction)
+    
+    # Update agency
+    await db.agencies.update_one(
+        {"agency_id": agency_id},
+        {"$set": {"credit_limit": new_limit, "credit_balance": new_balance, "updated_at": now}}
+    )
+    
+    return {"message": "Kredi güncellendi", "new_limit": new_limit, "new_balance": new_balance}
+
+@api_router.put("/admin/agencies/{agency_id}/commission")
+async def update_agency_commission(
+    agency_id: str,
+    commission_rate: float = Query(..., ge=0, le=100),
+    markup_rate: float = Query(0, ge=0, le=100),
+    user: dict = Depends(get_current_user)
+):
+    """Update agency commission settings (admin only)"""
+    if user.get("role") != "admin":
+        raise HTTPException(status_code=403, detail="Admin yetkisi gerekli")
+    
+    agency = await db.agencies.find_one({"agency_id": agency_id})
+    if not agency:
+        raise HTTPException(status_code=404, detail="Acenta bulunamadı")
+    
+    await db.agencies.update_one(
+        {"agency_id": agency_id},
+        {"$set": {
+            "commission_rate": commission_rate,
+            "markup_rate": markup_rate,
+            "updated_at": datetime.now(timezone.utc).isoformat()
+        }}
+    )
+    
+    return {"message": "Komisyon ayarları güncellendi", "commission_rate": commission_rate, "markup_rate": markup_rate}
+
+# Agency Sub-Users
+@api_router.post("/agencies/{agency_id}/users")
+async def create_agency_user(agency_id: str, user_data: AgencyUserCreate, user: dict = Depends(get_current_user)):
+    """Create a sub-user for agency"""
+    agency = await db.agencies.find_one({"agency_id": agency_id})
+    if not agency:
+        raise HTTPException(status_code=404, detail="Acenta bulunamadı")
+    
+    # Check access - admin or agency owner
+    if user.get("role") != "admin" and agency.get("owner_user_id") != user.get("user_id"):
+        raise HTTPException(status_code=403, detail="Erişim reddedildi")
+    
+    # Check if email exists
+    existing = await db.users.find_one({"email": user_data.email})
+    if existing:
+        raise HTTPException(status_code=400, detail="Bu e-posta zaten kullanımda")
+    
+    user_id = f"user_{uuid.uuid4().hex[:12]}"
+    now = datetime.now(timezone.utc)
+    
+    # Hash password
+    password_hash = bcrypt.hashpw(user_data.password.encode('utf-8'), bcrypt.gensalt()).decode('utf-8')
+    
+    user_doc = {
+        "user_id": user_id,
+        "agency_id": agency_id,
+        "email": user_data.email,
+        "name": user_data.name,
+        "phone": user_data.phone,
+        "password_hash": password_hash,
+        "role": "agency_user",
+        "agency_role": user_data.role.value,
+        "is_active": True,
+        "created_at": now.isoformat(),
+        "last_login": None
+    }
+    
+    await db.users.insert_one(user_doc)
+    
+    # Return without password
+    del user_doc["password_hash"]
+    if "_id" in user_doc:
+        del user_doc["_id"]
+    
+    return user_doc
+
+@api_router.get("/agencies/{agency_id}/users")
+async def list_agency_users(agency_id: str, user: dict = Depends(get_current_user)):
+    """List all users in an agency"""
+    agency = await db.agencies.find_one({"agency_id": agency_id})
+    if not agency:
+        raise HTTPException(status_code=404, detail="Acenta bulunamadı")
+    
+    # Check access
+    if user.get("role") != "admin" and user.get("agency_id") != agency_id:
+        raise HTTPException(status_code=403, detail="Erişim reddedildi")
+    
+    users = await db.users.find(
+        {"agency_id": agency_id},
+        {"_id": 0, "password_hash": 0}
+    ).to_list(100)
+    
+    return {"users": users, "total": len(users)}
+
+@api_router.put("/agencies/{agency_id}/users/{user_id}")
+async def update_agency_user(
+    agency_id: str,
+    user_id: str,
+    update_data: AgencyUserUpdate,
+    user: dict = Depends(get_current_user)
+):
+    """Update an agency sub-user"""
+    agency = await db.agencies.find_one({"agency_id": agency_id})
+    if not agency:
+        raise HTTPException(status_code=404, detail="Acenta bulunamadı")
+    
+    # Check access
+    if user.get("role") != "admin" and agency.get("owner_user_id") != user.get("user_id"):
+        raise HTTPException(status_code=403, detail="Erişim reddedildi")
+    
+    target_user = await db.users.find_one({"user_id": user_id, "agency_id": agency_id})
+    if not target_user:
+        raise HTTPException(status_code=404, detail="Kullanıcı bulunamadı")
+    
+    update_dict = {}
+    if update_data.name is not None:
+        update_dict["name"] = update_data.name
+    if update_data.phone is not None:
+        update_dict["phone"] = update_data.phone
+    if update_data.role is not None:
+        update_dict["agency_role"] = update_data.role.value
+    if update_data.is_active is not None:
+        update_dict["is_active"] = update_data.is_active
+    
+    if update_dict:
+        update_dict["updated_at"] = datetime.now(timezone.utc).isoformat()
+        await db.users.update_one({"user_id": user_id}, {"$set": update_dict})
+    
+    updated = await db.users.find_one({"user_id": user_id}, {"_id": 0, "password_hash": 0})
+    return updated
+
+@api_router.delete("/agencies/{agency_id}/users/{user_id}")
+async def delete_agency_user(agency_id: str, user_id: str, user: dict = Depends(get_current_user)):
+    """Deactivate an agency sub-user"""
+    agency = await db.agencies.find_one({"agency_id": agency_id})
+    if not agency:
+        raise HTTPException(status_code=404, detail="Acenta bulunamadı")
+    
+    if user.get("role") != "admin" and agency.get("owner_user_id") != user.get("user_id"):
+        raise HTTPException(status_code=403, detail="Erişim reddedildi")
+    
+    result = await db.users.update_one(
+        {"user_id": user_id, "agency_id": agency_id},
+        {"$set": {"is_active": False}}
+    )
+    
+    if result.modified_count == 0:
+        raise HTTPException(status_code=404, detail="Kullanıcı bulunamadı")
+    
+    return {"message": "Kullanıcı devre dışı bırakıldı"}
+
+# Agency Bookings
+@api_router.post("/agencies/{agency_id}/bookings")
+async def create_agency_booking(
+    agency_id: str,
+    booking_data: AgencyBookingRequest,
+    user: dict = Depends(get_current_user)
+):
+    """Create a booking on behalf of agency"""
+    agency = await db.agencies.find_one({"agency_id": agency_id})
+    if not agency:
+        raise HTTPException(status_code=404, detail="Acenta bulunamadı")
+    
+    # Check access
+    if user.get("agency_id") != agency_id and user.get("role") != "admin":
+        raise HTTPException(status_code=403, detail="Erişim reddedildi")
+    
+    # Check agency status
+    if agency.get("status") != AgencyStatus.APPROVED.value:
+        raise HTTPException(status_code=400, detail="Acenta henüz onaylanmamış")
+    
+    # Get hotel
+    hotel = await db.hotels.find_one({"hotel_id": booking_data.hotel_id, "status": "approved"})
+    if not hotel:
+        raise HTTPException(status_code=404, detail="Otel bulunamadı")
+    
+    # Calculate base price (simplified)
+    total_price = 0
+    for room in booking_data.rooms:
+        rate_plan = await db.rate_plans.find_one({"rate_plan_id": room.get("rate_plan_id")})
+        if rate_plan:
+            total_price += rate_plan.get("base_price", 0) * room.get("quantity", 1)
+    
+    # Apply markup
+    markup_rate = booking_data.markup_amount if booking_data.markup_amount else agency.get("markup_rate", 0)
+    markup_amount = total_price * (markup_rate / 100)
+    final_price = total_price + markup_amount
+    
+    # Commission calculation
+    commission_rate = agency.get("commission_rate", 10)
+    commission_amount = total_price * (commission_rate / 100)
+    
+    # Check credit if using credit
+    if booking_data.use_credit:
+        credit_balance = agency.get("credit_balance", 0)
+        if credit_balance < total_price:
+            raise HTTPException(status_code=400, detail=f"Yetersiz kredi. Mevcut: ₺{credit_balance:,.2f}, Gerekli: ₺{total_price:,.2f}")
+    
+    booking_id = f"booking_{uuid.uuid4().hex[:12]}"
+    booking_ref = generate_booking_ref()
+    now = datetime.now(timezone.utc)
+    
+    booking_doc = {
+        "booking_id": booking_id,
+        "booking_ref": booking_ref,
+        "agency_id": agency_id,
+        "agent_user_id": user.get("user_id"),
+        "hotel_id": booking_data.hotel_id,
+        "hotel_name": hotel["name"].get("tr", hotel["name"].get("en", "")),
+        "check_in": booking_data.check_in,
+        "check_out": booking_data.check_out,
+        "rooms": [r if isinstance(r, dict) else r.model_dump() for r in booking_data.rooms],
+        "guest_info": booking_data.guest_info if isinstance(booking_data.guest_info, dict) else booking_data.guest_info.model_dump(),
+        "adults": booking_data.adults,
+        "children": booking_data.children,
+        "children_ages": booking_data.children_ages,
+        "base_price": total_price,
+        "markup_rate": markup_rate,
+        "markup_amount": markup_amount,
+        "total_price": final_price,
+        "commission_rate": commission_rate,
+        "commission_amount": commission_amount,
+        "currency": "TRY",
+        "status": BookingStatus.CONFIRMED.value,
+        "payment_status": PaymentStatus.PAID.value if booking_data.use_credit else PaymentStatus.PENDING.value,
+        "payment_method": "credit" if booking_data.use_credit else "pending",
+        "booking_source": "agency",
+        "created_at": now.isoformat(),
+        "updated_at": now.isoformat()
+    }
+    
+    await db.bookings.insert_one(booking_doc)
+    
+    # Deduct credit if used
+    if booking_data.use_credit:
+        new_balance = agency.get("credit_balance", 0) - total_price
+        new_used = agency.get("credit_used", 0) + total_price
+        await db.agencies.update_one(
+            {"agency_id": agency_id},
+            {
+                "$set": {"credit_balance": new_balance, "credit_used": new_used},
+                "$inc": {"total_bookings": 1, "total_revenue": final_price}
+            }
+        )
+        
+        # Record transaction
+        transaction = {
+            "transaction_id": f"txn_{uuid.uuid4().hex[:12]}",
+            "agency_id": agency_id,
+            "amount": total_price,
+            "transaction_type": "debit",
+            "description": f"Rezervasyon: {booking_ref}",
+            "booking_id": booking_id,
+            "created_at": now.isoformat(),
+            "created_by": user.get("user_id")
+        }
+        await db.credit_transactions.insert_one(transaction)
+    
+    if "_id" in booking_doc:
+        del booking_doc["_id"]
+    
+    return booking_doc
+
+@api_router.get("/agencies/{agency_id}/bookings")
+async def list_agency_bookings(
+    agency_id: str,
+    status: Optional[str] = None,
+    page: int = 1,
+    limit: int = 20,
+    user: dict = Depends(get_current_user)
+):
+    """List bookings for an agency"""
+    agency = await db.agencies.find_one({"agency_id": agency_id})
+    if not agency:
+        raise HTTPException(status_code=404, detail="Acenta bulunamadı")
+    
+    if user.get("agency_id") != agency_id and user.get("role") != "admin":
+        raise HTTPException(status_code=403, detail="Erişim reddedildi")
+    
+    query = {"agency_id": agency_id}
+    if status:
+        query["status"] = status
+    
+    skip = (page - 1) * limit
+    bookings = await db.bookings.find(query, {"_id": 0}).sort("created_at", -1).skip(skip).limit(limit).to_list(limit)
+    total = await db.bookings.count_documents(query)
+    
+    return {"bookings": bookings, "total": total, "page": page, "limit": limit}
+
+@api_router.get("/agencies/{agency_id}/transactions")
+async def list_agency_transactions(
+    agency_id: str,
+    page: int = 1,
+    limit: int = 50,
+    user: dict = Depends(get_current_user)
+):
+    """List credit transactions for an agency"""
+    agency = await db.agencies.find_one({"agency_id": agency_id})
+    if not agency:
+        raise HTTPException(status_code=404, detail="Acenta bulunamadı")
+    
+    if user.get("agency_id") != agency_id and user.get("role") != "admin":
+        raise HTTPException(status_code=403, detail="Erişim reddedildi")
+    
+    skip = (page - 1) * limit
+    transactions = await db.credit_transactions.find(
+        {"agency_id": agency_id},
+        {"_id": 0}
+    ).sort("created_at", -1).skip(skip).limit(limit).to_list(limit)
+    total = await db.credit_transactions.count_documents({"agency_id": agency_id})
+    
+    return {"transactions": transactions, "total": total, "page": page, "limit": limit}
+
+@api_router.get("/agencies/{agency_id}/dashboard")
+async def get_agency_dashboard(agency_id: str, user: dict = Depends(get_current_user)):
+    """Get agency dashboard data"""
+    agency = await db.agencies.find_one({"agency_id": agency_id}, {"_id": 0})
+    if not agency:
+        raise HTTPException(status_code=404, detail="Acenta bulunamadı")
+    
+    if user.get("agency_id") != agency_id and user.get("role") != "admin":
+        raise HTTPException(status_code=403, detail="Erişim reddedildi")
+    
+    # Get booking stats
+    total_bookings = await db.bookings.count_documents({"agency_id": agency_id})
+    confirmed_bookings = await db.bookings.count_documents({"agency_id": agency_id, "status": "confirmed"})
+    cancelled_bookings = await db.bookings.count_documents({"agency_id": agency_id, "status": "cancelled"})
+    
+    # Get revenue
+    pipeline = [
+        {"$match": {"agency_id": agency_id, "status": {"$in": ["confirmed", "completed"]}}},
+        {"$group": {"_id": None, "total": {"$sum": "$total_price"}, "commission": {"$sum": "$commission_amount"}}}
+    ]
+    revenue_result = await db.bookings.aggregate(pipeline).to_list(1)
+    total_revenue = revenue_result[0]["total"] if revenue_result else 0
+    total_commission = revenue_result[0]["commission"] if revenue_result else 0
+    
+    # Get recent bookings
+    recent_bookings = await db.bookings.find(
+        {"agency_id": agency_id},
+        {"_id": 0}
+    ).sort("created_at", -1).limit(5).to_list(5)
+    
+    # Get user count
+    user_count = await db.users.count_documents({"agency_id": agency_id, "is_active": True})
+    
+    return {
+        "agency": agency,
+        "stats": {
+            "total_bookings": total_bookings,
+            "confirmed_bookings": confirmed_bookings,
+            "cancelled_bookings": cancelled_bookings,
+            "total_revenue": total_revenue,
+            "total_commission": total_commission,
+            "credit_limit": agency.get("credit_limit", 0),
+            "credit_balance": agency.get("credit_balance", 0),
+            "credit_used": agency.get("credit_used", 0),
+            "user_count": user_count
+        },
+        "recent_bookings": recent_bookings
+    }
 
 # ================== UTILITY ROUTES ==================
 
