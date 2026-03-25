@@ -367,13 +367,26 @@ export default function ExtranetPricing() {
     const endDate = format(endOfMonth(addMonths(currentMonth, 1)), "yyyy-MM-dd");
     
     try {
-      const response = await fetch(
+      // Load regular inventory
+      const inventoryRes = await fetch(
         `${API}/inventory/${selectedRoom.room_id}?rate_plan_id=${selectedRatePlan.rate_plan_id}&start_date=${startDate}&end_date=${endDate}`,
         { credentials: "include" }
       );
-      if (response.ok) {
-        const data = await response.json();
+      
+      // Load market pricing for all markets
+      const marketRes = await fetch(
+        `${API}/market-pricing/${selectedRoom.room_id}/all-markets?rate_plan_id=${selectedRatePlan.rate_plan_id}&start_date=${startDate}&end_date=${endDate}`,
+        { credentials: "include" }
+      );
+      
+      if (inventoryRes.ok) {
+        const data = await inventoryRes.json();
         setInventory(data.inventory || []);
+      }
+      
+      if (marketRes.ok) {
+        const data = await marketRes.json();
+        setMarketPrices(data.pricing_by_market || {});
       }
     } catch (error) {
       console.error("Error loading inventory:", error);
@@ -466,48 +479,51 @@ export default function ExtranetPricing() {
       return;
     }
     
+    if (bulkForm.selected_markets.length === 0) {
+      toast.error(language === "tr" ? "En az bir pazar seçin" : "Select at least one market");
+      return;
+    }
+    
     setSaving(true);
     
-    const allDates = eachDayOfInterval({
-      start: new Date(bulkForm.start_date),
-      end: new Date(bulkForm.end_date),
-    });
-    
-    // Filter based on apply_to
-    const filteredDates = allDates.filter(date => {
-      if (bulkForm.apply_to === "weekends") return isWeekend(date);
-      if (bulkForm.apply_to === "weekdays") return !isWeekend(date);
-      return true;
-    });
-    
-    const dates = filteredDates.map(date => ({
-      date: format(date, "yyyy-MM-dd"),
-      price: bulkForm.price_market ? parseFloat(bulkForm.price_market) : null,
-      price_local: bulkForm.price_local ? parseFloat(bulkForm.price_local) : null,
-      price_corporate: bulkForm.price_corporate ? parseFloat(bulkForm.price_corporate) : null,
-      price_package: bulkForm.price_package ? parseFloat(bulkForm.price_package) : null,
-      available_units: parseInt(bulkForm.available_units),
-      min_stay: parseInt(bulkForm.min_stay) || 1,
-      stop_sale: bulkForm.stop_sale,
-    }));
-    
     try {
-      const response = await fetch(`${API}/inventory`, {
+      // Build market prices array
+      const markets = bulkForm.selected_markets.map(marketCode => {
+        const market = marketCountries.find(m => m.code === marketCode);
+        return {
+          market_code: marketCode,
+          price: bulkForm.price_market ? parseFloat(bulkForm.price_market) : 0,
+          currency: market?.currency || "TRY"
+        };
+      });
+      
+      // Use bulk market pricing endpoint
+      const response = await fetch(`${API}/market-pricing/bulk`, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: { 
+          "Content-Type": "application/json",
+          "Authorization": `Bearer ${localStorage.getItem("auth_token")}`
+        },
         credentials: "include",
         body: JSON.stringify({
           room_id: selectedRoom.room_id,
           rate_plan_id: selectedRatePlan.rate_plan_id,
-          dates,
+          start_date: bulkForm.start_date,
+          end_date: bulkForm.end_date,
+          markets,
+          available_units: parseInt(bulkForm.available_units),
+          min_stay: parseInt(bulkForm.min_stay) || 1,
+          apply_to: bulkForm.apply_to,
+          stop_sale: bulkForm.stop_sale
         }),
       });
       
-      if (!response.ok) throw new Error("Failed to update inventory");
+      if (!response.ok) throw new Error("Failed to update market pricing");
       
+      const result = await response.json();
       toast.success(language === "tr" 
-        ? `${dates.length} gün güncellendi!` 
-        : `Updated ${dates.length} dates!`
+        ? `${result.markets_updated} pazar, ${result.dates_updated} gün güncellendi!` 
+        : `Updated ${result.markets_updated} markets, ${result.dates_updated} dates!`
       );
       setBulkDialogOpen(false);
       loadInventory();
@@ -543,22 +559,50 @@ export default function ExtranetPricing() {
     const dates = Object.values(dateUpdates).map(update => ({
       date: update.date,
       price: update.price ? parseFloat(update.price) : undefined,
-      available_units: update.quota ? parseInt(update.quota) : undefined,
+      available_units: update.quota ? parseInt(update.quota) : 10,
+      min_stay: 1,
+      stop_sale: false
     }));
     
     try {
-      const response = await fetch(`${API}/inventory`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        credentials: "include",
-        body: JSON.stringify({
-          room_id: selectedRoom.room_id,
-          rate_plan_id: selectedRatePlan.rate_plan_id,
-          dates,
-        }),
-      });
-      
-      if (!response.ok) throw new Error("Failed to save");
+      // If editing market prices, use market pricing endpoint
+      if (selectedPriceType === "market" && selectedMarket) {
+        const response = await fetch(`${API}/market-pricing`, {
+          method: "POST",
+          headers: { 
+            "Content-Type": "application/json",
+            "Authorization": `Bearer ${localStorage.getItem("auth_token")}`
+          },
+          credentials: "include",
+          body: JSON.stringify({
+            room_id: selectedRoom.room_id,
+            rate_plan_id: selectedRatePlan.rate_plan_id,
+            market_code: selectedMarket.code,
+            price_type: "market",
+            currency: selectedMarket.currency,
+            dates,
+          }),
+        });
+        
+        if (!response.ok) throw new Error("Failed to save market pricing");
+      } else {
+        // Regular inventory update
+        const response = await fetch(`${API}/inventory`, {
+          method: "POST",
+          headers: { 
+            "Content-Type": "application/json",
+            "Authorization": `Bearer ${localStorage.getItem("auth_token")}`
+          },
+          credentials: "include",
+          body: JSON.stringify({
+            room_id: selectedRoom.room_id,
+            rate_plan_id: selectedRatePlan.rate_plan_id,
+            dates,
+          }),
+        });
+        
+        if (!response.ok) throw new Error("Failed to save");
+      }
       
       toast.success(language === "tr" ? "Kaydedildi!" : "Saved!");
       setEditedCells({});
@@ -583,22 +627,48 @@ export default function ExtranetPricing() {
     return inventory.find(inv => inv.date === dateStr);
   };
   
+  const getMarketPriceForDate = (date, marketCode) => {
+    const dateStr = format(date, "yyyy-MM-dd");
+    const marketData = marketPrices[marketCode];
+    if (!marketData) return null;
+    return marketData.find(p => p.date === dateStr);
+  };
+  
   const getPriceForType = (inv, priceType, marketCode = null) => {
     if (!inv) return null;
     
-    // If market price type and market code provided, get market-specific price
-    if (priceType === "market" && marketCode) {
-      const marketPrice = inv.market_prices?.[marketCode];
-      if (marketPrice) return marketPrice;
+    // If market price type and we have specific market prices loaded
+    if (priceType === "market" && marketCode && marketPrices[marketCode]) {
+      const marketEntry = marketPrices[marketCode]?.find(p => p.date === inv.date);
+      if (marketEntry) return { price: marketEntry.price, currency: marketEntry.currency };
     }
     
     switch (priceType) {
-      case "local_tr": return inv.price_local || inv.price;
-      case "corporate": return inv.price_corporate || inv.price;
-      case "dynamic_package": return inv.price_package || inv.price;
-      case "market": return inv.market_prices?.[selectedMarket.code] || inv.price;
-      default: return inv.price;
+      case "local_tr": return { price: inv.price_local || inv.price, currency: "TRY" };
+      case "corporate": return { price: inv.price_corporate || inv.price, currency: "TRY" };
+      case "dynamic_package": return { price: inv.price_package || inv.price, currency: "TRY" };
+      case "market": {
+        const mc = selectedMarket?.code || "TR";
+        const marketEntry = marketPrices[mc]?.find(p => p.date === inv.date);
+        if (marketEntry) return { price: marketEntry.price, currency: marketEntry.currency };
+        return { price: inv.price, currency: "TRY" };
+      }
+      default: return { price: inv.price, currency: "TRY" };
     }
+  };
+  
+  const formatPriceWithCurrency = (priceData) => {
+    if (!priceData || priceData.price === null || priceData.price === undefined) return "-";
+    const { price, currency } = priceData;
+    
+    const currencySymbols = {
+      TRY: "₺", EUR: "€", USD: "$", GBP: "£", RUB: "₽", SAR: "﷼",
+      AUD: "A$", CAD: "C$", CHF: "CHF", SEK: "kr", NOK: "kr", DKK: "kr",
+      PLN: "zł", UAH: "₴"
+    };
+    
+    const symbol = currencySymbols[currency] || currency;
+    return `${symbol}${price.toLocaleString()}`;
   };
   
   // Filter rate plans for selected room

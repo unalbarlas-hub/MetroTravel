@@ -204,6 +204,54 @@ class Currency(str, Enum):
     EUR = "EUR"
     USD = "USD"
     GBP = "GBP"
+    RUB = "RUB"
+    SAR = "SAR"
+    AUD = "AUD"
+    CAD = "CAD"
+    CHF = "CHF"
+    SEK = "SEK"
+    NOK = "NOK"
+    DKK = "DKK"
+    PLN = "PLN"
+    UAH = "UAH"
+
+# Market/Country codes with their currencies
+MARKET_CURRENCIES = {
+    "TR": "TRY", "DE": "EUR", "GB": "GBP", "FR": "EUR", "NL": "EUR",
+    "BE": "EUR", "RU": "RUB", "UA": "UAH", "PL": "PLN", "US": "USD",
+    "CA": "CAD", "AU": "AUD", "IT": "EUR", "ES": "EUR", "AT": "EUR",
+    "CH": "CHF", "SE": "SEK", "NO": "NOK", "DK": "DKK", "SA": "SAR"
+}
+
+# Exchange rates (base: TRY) - These should be updated periodically
+EXCHANGE_RATES = {
+    "TRY": 1.0,
+    "EUR": 0.027,    # 1 TRY = 0.027 EUR
+    "USD": 0.029,    # 1 TRY = 0.029 USD
+    "GBP": 0.023,    # 1 TRY = 0.023 GBP
+    "RUB": 2.65,     # 1 TRY = 2.65 RUB
+    "SAR": 0.11,     # 1 TRY = 0.11 SAR
+    "AUD": 0.045,    # 1 TRY = 0.045 AUD
+    "CAD": 0.040,    # 1 TRY = 0.040 CAD
+    "CHF": 0.026,    # 1 TRY = 0.026 CHF
+    "SEK": 0.31,     # 1 TRY = 0.31 SEK
+    "NOK": 0.32,     # 1 TRY = 0.32 NOK
+    "DKK": 0.20,     # 1 TRY = 0.20 DKK
+    "PLN": 0.12,     # 1 TRY = 0.12 PLN
+    "UAH": 1.2,      # 1 TRY = 1.2 UAH
+}
+
+def convert_currency(amount: float, from_currency: str, to_currency: str) -> float:
+    """Convert amount from one currency to another using TRY as base"""
+    if from_currency == to_currency:
+        return amount
+    # Convert to TRY first, then to target
+    try_amount = amount / EXCHANGE_RATES.get(from_currency, 1.0)
+    return round(try_amount * EXCHANGE_RATES.get(to_currency, 1.0), 2)
+
+def get_market_currency(market_code: str) -> str:
+    """Get the currency for a market/country code"""
+    return MARKET_CURRENCIES.get(market_code, "EUR")
 
 # Room Amenity Codes
 class RoomAmenity(str, Enum):
@@ -433,6 +481,46 @@ class InventoryUpdate(BaseModel):
     room_id: str
     rate_plan_id: str
     dates: List[DatePricing]
+
+# Market Pricing Models
+class MarketPrice(BaseModel):
+    """Price for a specific market/country"""
+    market_code: str  # TR, DE, GB, etc.
+    price: float
+    currency: str
+    
+class MarketPricingEntry(BaseModel):
+    """Single date pricing for a market"""
+    date: str  # YYYY-MM-DD
+    price: float
+    available_units: int
+    min_stay: int = 1
+    stop_sale: bool = False
+
+class MarketInventoryUpdate(BaseModel):
+    """Update inventory with market-specific pricing"""
+    room_id: str
+    rate_plan_id: str
+    market_code: str
+    price_type: str = "market"  # market, local_tr, corporate, dynamic_package
+    currency: str = "TRY"
+    dates: List[MarketPricingEntry]
+
+class BulkMarketPricing(BaseModel):
+    """Bulk update pricing for multiple markets"""
+    room_id: str
+    rate_plan_id: str
+    start_date: str
+    end_date: str
+    markets: List[MarketPrice]
+    available_units: int = 10
+    min_stay: int = 1
+    apply_to: str = "all"  # all, weekdays, weekends
+    stop_sale: bool = False
+
+class ExchangeRateUpdate(BaseModel):
+    """Update exchange rates"""
+    rates: Dict[str, float]  # currency code -> rate vs TRY
 
 # Booking Models
 class GuestInfo(BaseModel):
@@ -1475,6 +1563,229 @@ async def get_hotel_inventory(hotel_id: str, start_date: str, end_date: str):
     }, {"_id": 0}).to_list(10000)
     
     return {"inventory": inventory}
+
+# ================== MARKET PRICING ROUTES ==================
+
+@api_router.post("/market-pricing")
+async def update_market_pricing(data: MarketInventoryUpdate, user: User = Depends(get_current_user)):
+    """Update pricing for a specific market/country"""
+    room = await db.rooms.find_one({"room_id": data.room_id}, {"_id": 0})
+    if not room:
+        raise HTTPException(status_code=404, detail="Room not found")
+    
+    hotel = await db.hotels.find_one({"hotel_id": room["hotel_id"]}, {"_id": 0})
+    if user.role != UserRole.ADMIN and hotel["owner_id"] != user.user_id:
+        raise HTTPException(status_code=403, detail="Not authorized")
+    
+    updated_count = 0
+    for entry in data.dates:
+        doc_id = f"mp_{data.room_id}_{data.rate_plan_id}_{data.market_code}_{entry.date}"
+        
+        await db.market_pricing.update_one(
+            {
+                "room_id": data.room_id,
+                "rate_plan_id": data.rate_plan_id,
+                "market_code": data.market_code,
+                "date": entry.date
+            },
+            {"$set": {
+                "doc_id": doc_id,
+                "hotel_id": room["hotel_id"],
+                "price_type": data.price_type,
+                "price": entry.price,
+                "currency": data.currency,
+                "available_units": entry.available_units,
+                "min_stay": entry.min_stay,
+                "stop_sale": entry.stop_sale,
+                "updated_at": datetime.now(timezone.utc).isoformat()
+            }},
+            upsert=True
+        )
+        updated_count += 1
+    
+    return {"message": "Market pricing updated", "market": data.market_code, "dates_updated": updated_count}
+
+@api_router.post("/market-pricing/bulk")
+async def bulk_update_market_pricing(data: BulkMarketPricing, user: User = Depends(get_current_user)):
+    """Bulk update pricing for multiple markets"""
+    room = await db.rooms.find_one({"room_id": data.room_id}, {"_id": 0})
+    if not room:
+        raise HTTPException(status_code=404, detail="Room not found")
+    
+    hotel = await db.hotels.find_one({"hotel_id": room["hotel_id"]}, {"_id": 0})
+    if user.role != UserRole.ADMIN and hotel["owner_id"] != user.user_id:
+        raise HTTPException(status_code=403, detail="Not authorized")
+    
+    # Generate dates
+    from datetime import timedelta
+    start = datetime.strptime(data.start_date, "%Y-%m-%d")
+    end = datetime.strptime(data.end_date, "%Y-%m-%d")
+    dates = []
+    current = start
+    while current <= end:
+        day_of_week = current.weekday()
+        is_weekend = day_of_week >= 5
+        
+        should_include = (
+            data.apply_to == "all" or
+            (data.apply_to == "weekends" and is_weekend) or
+            (data.apply_to == "weekdays" and not is_weekend)
+        )
+        
+        if should_include:
+            dates.append(current.strftime("%Y-%m-%d"))
+        current += timedelta(days=1)
+    
+    updated_count = 0
+    for market in data.markets:
+        for date_str in dates:
+            doc_id = f"mp_{data.room_id}_{data.rate_plan_id}_{market.market_code}_{date_str}"
+            
+            await db.market_pricing.update_one(
+                {
+                    "room_id": data.room_id,
+                    "rate_plan_id": data.rate_plan_id,
+                    "market_code": market.market_code,
+                    "date": date_str
+                },
+                {"$set": {
+                    "doc_id": doc_id,
+                    "hotel_id": room["hotel_id"],
+                    "price_type": "market",
+                    "price": market.price,
+                    "currency": market.currency,
+                    "available_units": data.available_units,
+                    "min_stay": data.min_stay,
+                    "stop_sale": data.stop_sale,
+                    "updated_at": datetime.now(timezone.utc).isoformat()
+                }},
+                upsert=True
+            )
+            updated_count += 1
+    
+    return {
+        "message": "Bulk market pricing updated",
+        "markets_updated": len(data.markets),
+        "dates_updated": updated_count
+    }
+
+@api_router.get("/market-pricing/{room_id}")
+async def get_market_pricing(
+    room_id: str,
+    rate_plan_id: str,
+    market_code: str,
+    start_date: str,
+    end_date: str
+):
+    """Get market-specific pricing for a room"""
+    pricing = await db.market_pricing.find({
+        "room_id": room_id,
+        "rate_plan_id": rate_plan_id,
+        "market_code": market_code,
+        "date": {"$gte": start_date, "$lte": end_date}
+    }, {"_id": 0}).to_list(365)
+    
+    return {"pricing": pricing, "market_code": market_code}
+
+@api_router.get("/market-pricing/{room_id}/all-markets")
+async def get_all_markets_pricing(
+    room_id: str,
+    rate_plan_id: str,
+    start_date: str,
+    end_date: str
+):
+    """Get pricing for all markets for a room"""
+    pricing = await db.market_pricing.find({
+        "room_id": room_id,
+        "rate_plan_id": rate_plan_id,
+        "date": {"$gte": start_date, "$lte": end_date}
+    }, {"_id": 0}).to_list(10000)
+    
+    # Group by market
+    markets_pricing = {}
+    for p in pricing:
+        market = p["market_code"]
+        if market not in markets_pricing:
+            markets_pricing[market] = []
+        markets_pricing[market].append(p)
+    
+    return {"pricing_by_market": markets_pricing}
+
+@api_router.get("/exchange-rates")
+async def get_exchange_rates():
+    """Get current exchange rates"""
+    # Check for custom rates in database
+    custom_rates = await db.settings.find_one({"setting_id": "exchange_rates"}, {"_id": 0})
+    if custom_rates and "rates" in custom_rates:
+        return {"rates": custom_rates["rates"], "source": "custom"}
+    
+    return {"rates": EXCHANGE_RATES, "source": "default"}
+
+@api_router.put("/exchange-rates")
+async def update_exchange_rates(data: ExchangeRateUpdate, user: User = Depends(get_current_user)):
+    """Update exchange rates (admin only)"""
+    if user.role != UserRole.ADMIN:
+        raise HTTPException(status_code=403, detail="Admin only")
+    
+    await db.settings.update_one(
+        {"setting_id": "exchange_rates"},
+        {"$set": {
+            "rates": data.rates,
+            "updated_at": datetime.now(timezone.utc).isoformat(),
+            "updated_by": user.user_id
+        }},
+        upsert=True
+    )
+    
+    return {"message": "Exchange rates updated", "rates": data.rates}
+
+@api_router.get("/convert-price")
+async def convert_price(amount: float, from_currency: str, to_currency: str):
+    """Convert price between currencies"""
+    # Get rates (check custom first)
+    custom_rates = await db.settings.find_one({"setting_id": "exchange_rates"}, {"_id": 0})
+    rates = custom_rates.get("rates", EXCHANGE_RATES) if custom_rates else EXCHANGE_RATES
+    
+    if from_currency == to_currency:
+        return {"original": amount, "converted": amount, "currency": to_currency}
+    
+    # Convert via TRY as base
+    try_amount = amount / rates.get(from_currency, 1.0)
+    converted = round(try_amount * rates.get(to_currency, 1.0), 2)
+    
+    return {
+        "original": amount,
+        "from_currency": from_currency,
+        "converted": converted,
+        "to_currency": to_currency
+    }
+
+@api_router.get("/markets")
+async def get_available_markets():
+    """Get list of available markets with their currencies"""
+    markets = [
+        {"code": "TR", "name": "Turkey (Domestic)", "currency": "TRY", "flag": "🇹🇷"},
+        {"code": "DE", "name": "Germany", "currency": "EUR", "flag": "🇩🇪"},
+        {"code": "GB", "name": "United Kingdom", "currency": "GBP", "flag": "🇬🇧"},
+        {"code": "FR", "name": "France", "currency": "EUR", "flag": "🇫🇷"},
+        {"code": "NL", "name": "Netherlands", "currency": "EUR", "flag": "🇳🇱"},
+        {"code": "BE", "name": "Belgium", "currency": "EUR", "flag": "🇧🇪"},
+        {"code": "RU", "name": "Russia", "currency": "RUB", "flag": "🇷🇺"},
+        {"code": "UA", "name": "Ukraine", "currency": "UAH", "flag": "🇺🇦"},
+        {"code": "PL", "name": "Poland", "currency": "PLN", "flag": "🇵🇱"},
+        {"code": "US", "name": "United States", "currency": "USD", "flag": "🇺🇸"},
+        {"code": "CA", "name": "Canada", "currency": "CAD", "flag": "🇨🇦"},
+        {"code": "AU", "name": "Australia", "currency": "AUD", "flag": "🇦🇺"},
+        {"code": "IT", "name": "Italy", "currency": "EUR", "flag": "🇮🇹"},
+        {"code": "ES", "name": "Spain", "currency": "EUR", "flag": "🇪🇸"},
+        {"code": "AT", "name": "Austria", "currency": "EUR", "flag": "🇦🇹"},
+        {"code": "CH", "name": "Switzerland", "currency": "CHF", "flag": "🇨🇭"},
+        {"code": "SE", "name": "Sweden", "currency": "SEK", "flag": "🇸🇪"},
+        {"code": "NO", "name": "Norway", "currency": "NOK", "flag": "🇳🇴"},
+        {"code": "DK", "name": "Denmark", "currency": "DKK", "flag": "🇩🇰"},
+        {"code": "SA", "name": "Saudi Arabia", "currency": "SAR", "flag": "🇸🇦"},
+    ]
+    return {"markets": markets}
 
 # ================== SEARCH ROUTES ==================
 
