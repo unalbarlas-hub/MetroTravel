@@ -210,7 +210,19 @@ Build a scalable, production-ready Hotel Booking & Travel Platform similar to Bo
 - Sub-user management with roles (Admin, Agent, Finance)
 - Agency-specific bookings and transactions
 
-### Agency API Endpoints
+### Backend API Endpoints
+
+**Hotel Registration:**
+- `POST /api/hotels/register` - Simple hotel registration (flat JSON)
+  - Accepts: name, name_translations, property_type, star_rating, city, district, description, amenities[], images[], contact info
+  - Upgrades user role: customer → hotel_owner
+  - Creates hotel with "pending" status
+
+**Agency Registration:**
+- `POST /api/agencies` - Agency registration
+  - Accepts: name, contact_person, email, phone, city, address, tax_number, website
+  - Upgrades user role: customer → agency_owner
+  - Creates agency with "pending" status, 10% commission, 5% markup
 - `POST /api/agencies` - Register new agency
 - `GET /api/agencies` - List agencies (admin only)
 - `GET /api/agencies/{id}` - Get agency details
@@ -269,9 +281,10 @@ IYZICO_BASE_URL=https://sandbox-api.iyzipay.com (or https://api.iyzipay.com for 
 5. Add map view for search results
 
 ## Test Reports
+- `/app/test_reports/iteration_7.json` - Registration Backend/Frontend Sync (100% pass rate)
 - `/app/test_reports/iteration_6.json` - Premium Registration Pages (100% pass rate)
 - `/app/test_reports/iteration_5.json` - B2B Agency Panel (100% pass rate)
 - `/app/test_reports/iteration_4.json` - Extranet Pricing
 - `/app/test_reports/iteration_3.json` - Brand & Core features
-- Backend: 23/23 Agency tests passed
+- Backend: 36+ tests passed
 - Frontend: All panels fully functional
